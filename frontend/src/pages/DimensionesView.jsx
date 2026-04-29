@@ -1,0 +1,198 @@
+import { useState } from 'react'
+import { useOutletContext } from 'react-router-dom'
+import { useFilters } from '../context/FilterContext'
+import { useData } from '../hooks/useData'
+import { api } from '../services/api'
+import { fmtCOP, fmtPct, fmtInt, pctColor, MONTH_NAMES } from '../utils/format'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell, PieChart, Pie, Legend,
+} from 'recharts'
+
+const PALETTE = ['#6366f1','#06b6d4','#10b981','#f59e0b','#f43f5e','#a855f7','#ec4899','#14b8a6','#f97316','#8b5cf6','#3b82f6','#84cc16']
+
+const PANELS = [
+  { id: 'tipo_fabricacion',    label: 'Tipo Fabricación',   src: 'seg',  top: 20 },
+  { id: 'linea_negocio',       label: 'Línea de Negocio',   src: 'seg',  top: 20 },
+  { id: 'unidad_medida_venta', label: 'Unidad de Medida',   src: 'seg',  top: 30 },
+  { id: 'descripcion_parte',   label: 'Top Partes',         src: 'seg',  top: 30 },
+  { id: 'es_stock',            label: 'Stock vs No Stock',  src: 'atr',  top: 20 },
+  { id: 'estructura',          label: 'Estructura',         src: 'atr',  top: 20 },
+  { id: 'tipo_producto',       label: 'Tipo Producto',      src: 'atr',  top: 20 },
+]
+
+function TTip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-surface-800 border border-surface-600 rounded-xl px-4 py-3 text-xs min-w-48">
+      <p className="text-slate-200 font-semibold mb-2 truncate max-w-44">{label}</p>
+      {payload.map((p) => (
+        <div key={p.dataKey} className="flex justify-between gap-4 py-0.5">
+          <span className="text-slate-400">{p.name}</span>
+          <span className="text-slate-100 font-medium">{fmtCOP(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function DimPanel({ panelId, label, src, top, filters, refreshKey }) {
+  const fetcher = src === 'seg'
+    ? () => api.segments(filters, panelId, top)
+    : () => api.atributos(filters, panelId, top)
+
+  const { data, loading, error } = useData(fetcher, [filters, refreshKey, panelId])
+  const rows = data?.data || []
+  const totalVN = rows.reduce((s, d) => s + (d.ventas_netas || 0), 0)
+
+  const chartData = rows.slice(0, 12).map((d) => ({
+    name: d.dimension?.length > 22 ? d.dimension.slice(0, 22) + '…' : (d.dimension || '—'),
+    ventas_netas: d.ventas_netas,
+    ventas_netas_ant: d.ventas_netas_ant,
+  }))
+
+  const pieData = rows.slice(0, 8).map((d, i) => ({
+    name: d.dimension?.length > 18 ? d.dimension.slice(0, 18) + '…' : (d.dimension || '—'),
+    value: d.ventas_netas,
+    fill: PALETTE[i % PALETTE.length],
+  }))
+
+  return (
+    <div className="card">
+      <h2 className="text-sm font-semibold text-slate-200 mb-0.5">{label}</h2>
+      {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
+
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 mt-3">
+        {/* Bar chart */}
+        <div className={`xl:col-span-3 h-56 ${loading ? 'opacity-40 animate-pulse' : ''}`}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} layout="vertical" margin={{ top: 2, right: 16, left: 4, bottom: 2 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
+              <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={fmtCOP} />
+              <YAxis type="category" dataKey="name" tick={{ fill: '#cbd5e1', fontSize: 10 }} axisLine={false} tickLine={false} width={120} />
+              <Tooltip content={<TTip />} />
+              <Legend wrapperStyle={{ fontSize: 10 }} formatter={(v) => <span style={{ color: '#94a3b8' }}>{v}</span>} />
+              <Bar dataKey="ventas_netas" name="Ventas Netas" radius={[0, 3, 3, 0]}>
+                {chartData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+              </Bar>
+              {chartData.some((d) => d.ventas_netas_ant > 0) && (
+                <Bar dataKey="ventas_netas_ant" name="Año Anterior" radius={[0, 3, 3, 0]} fill="#1f2937" stroke="#374151" strokeWidth={1} />
+              )}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Pie */}
+        <div className={`xl:col-span-2 h-56 ${loading ? 'opacity-40 animate-pulse' : ''}`}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} dataKey="value" nameKey="name" paddingAngle={2}>
+                {pieData.map((e, i) => <Cell key={i} fill={e.fill} />)}
+              </Pie>
+              <Tooltip formatter={(v) => fmtCOP(v)} contentStyle={{ background: '#161b27', border: '1px solid #1f2937', borderRadius: 8, fontSize: 10 }} />
+              <Legend formatter={(v) => <span style={{ color: '#94a3b8', fontSize: 10 }}>{v}</span>} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Mini table */}
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-left border-b border-surface-700 text-slate-400">
+              <th className="pb-2 font-medium">#</th>
+              <th className="pb-2 font-medium">{label}</th>
+              <th className="pb-2 font-medium text-right">Ventas Netas</th>
+              <th className="pb-2 font-medium text-right">Part %</th>
+              <th className="pb-2 font-medium text-right">Año Ant.</th>
+              <th className="pb-2 font-medium text-right">Var YoY</th>
+              <th className="pb-2 font-medium text-right">Var MoM</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading
+              ? [...Array(4)].map((_, i) => <tr key={i}><td colSpan={7}><div className="animate-pulse h-5 my-1.5 bg-surface-700 rounded" /></td></tr>)
+              : rows.slice(0, 15).map((d, i) => (
+                <tr key={i} className="border-b border-surface-700/30 hover:bg-surface-700/20">
+                  <td className="py-2 text-slate-500">{i + 1}</td>
+                  <td className="py-2 font-medium text-slate-100">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
+                      <span className="max-w-[200px] truncate">{d.dimension || '—'}</span>
+                    </div>
+                  </td>
+                  <td className="py-2 text-right font-semibold text-brand-300">{fmtCOP(d.ventas_netas)}</td>
+                  <td className="py-2 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <div className="w-10 h-1.5 bg-surface-700 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${d.participacion_pct}%`, background: PALETTE[i % PALETTE.length] }} />
+                      </div>
+                      <span className="text-slate-400 w-8 text-right">{fmtPct(d.participacion_pct, 1)}</span>
+                    </div>
+                  </td>
+                  <td className="py-2 text-right text-slate-500">{d.ventas_netas_ant != null ? fmtCOP(d.ventas_netas_ant) : '—'}</td>
+                  <td className={`py-2 text-right font-semibold ${pctColor(d.variacion_yoy_pct)}`}>{d.variacion_yoy_pct != null ? fmtPct(d.variacion_yoy_pct, 1) : '—'}</td>
+                  <td className={`py-2 text-right font-semibold ${pctColor(d.variacion_mom_pct)}`}>{d.variacion_mom_pct != null ? fmtPct(d.variacion_mom_pct, 1) : '—'}</td>
+                </tr>
+              ))
+            }
+            {rows.length > 0 && (
+              <tr className="border-t-2 border-surface-600 font-bold text-slate-100">
+                <td className="py-2" colSpan={2}>TOTAL</td>
+                <td className="py-2 text-right text-brand-300">{fmtCOP(totalVN)}</td>
+                <td className="py-2 text-right text-slate-400">100%</td>
+                <td colSpan={3} />
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+export function DimensionesView() {
+  const { refreshKey } = useOutletContext()
+  const { filters }    = useFilters()
+  const [active, setActive] = useState(null)
+
+  const period = filters.mes ? `${MONTH_NAMES[filters.mes]} ${filters.ano}` : `Año ${filters.ano}`
+
+  const visiblePanels = active ? PANELS.filter((p) => p.id === active) : PANELS
+
+  return (
+    <div className="flex flex-col gap-5 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-100">Análisis por Dimensión</h1>
+          <p className="text-slate-500 text-xs mt-0.5">Todas las dimensiones del modelo de datos · {period}</p>
+        </div>
+        <div className="flex gap-1 flex-wrap justify-end">
+          <button onClick={() => setActive(null)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!active ? 'bg-brand-600 text-white' : 'bg-surface-800 text-slate-400 hover:text-slate-100 border border-surface-700'}`}>
+            Todos
+          </button>
+          {PANELS.map((p) => (
+            <button key={p.id} onClick={() => setActive(p.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${active === p.id ? 'bg-brand-600 text-white' : 'bg-surface-800 text-slate-400 hover:text-slate-100 border border-surface-700'}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {visiblePanels.map((p) => (
+        <DimPanel
+          key={p.id}
+          panelId={p.id}
+          label={p.label}
+          src={p.src}
+          top={p.top}
+          filters={filters}
+          refreshKey={refreshKey}
+        />
+      ))}
+    </div>
+  )
+}
