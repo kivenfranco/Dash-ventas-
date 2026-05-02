@@ -8,6 +8,7 @@ import {
   Lightbulb, BotMessageSquare, LayoutGrid, Globe, Target, BookOpen, Rocket, Mail,
 } from 'lucide-react'
 import { api } from '../../services/api'
+import logoAlico from '../../assets/logo.png'
 
 const TABS = [
   { to: '/',           label: 'Resumen',    icon: LayoutDashboard },
@@ -34,7 +35,7 @@ function TabBar({ onRefresh, refreshing }) {
       {/* Brand row */}
       <div className="flex items-center justify-between px-6 h-12 border-b border-surface-700/50">
         <div className="flex items-center gap-3">
-          <Activity size={18} className="text-brand-400" />
+          <img src={logoAlico} alt="ALICO" className="h-7 w-7 rounded-md object-contain" />
           <span className="font-bold text-slate-100 text-sm tracking-wide">Centro de Inteligencia de negocio</span>
           <span className="text-slate-600 text-xs">ALICO SAS BIC</span>
         </div>

@@ -537,8 +537,8 @@ function PlantaChart({ data, loading }) {
   return (
     <div className="flex flex-col xl:flex-row gap-6">
       {/* Donut — participación */}
-      <div className="xl:w-72 flex flex-col items-center justify-center">
-        <ResponsiveContainer width="100%" height={240}>
+      <div className="xl:w-72 flex flex-col items-center">
+        <ResponsiveContainer width="100%" height={220}>
           <PieChart>
             <Pie data={pieData} cx="50%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={2} dataKey="value">
               {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
@@ -553,10 +553,18 @@ function PlantaChart({ data, loading }) {
                 </div>
               )
             }} />
-            <Legend iconSize={8} formatter={(v) => <span className="text-slate-400 text-xs">{v}</span>} />
           </PieChart>
         </ResponsiveContainer>
-        <p className="text-xs text-slate-500 -mt-2 text-center">Participación por Planta</p>
+        <p className="text-xs text-slate-500 mb-2 text-center">Participación por Línea de Negocio</p>
+        {/* Leyenda HTML — sin overflow */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 w-full px-2">
+          {pieData.map((d, i) => (
+            <div key={i} className="flex items-center gap-1.5 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: d.color }} />
+              <span className="text-xs text-slate-400 truncate">{d.name}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Grouped bars — ant vs ventas */}
