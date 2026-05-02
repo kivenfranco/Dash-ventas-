@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, Globe, Store } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, Globe, Store, Search } from 'lucide-react'
 import { useFilters } from '../../context/FilterContext'
 import { api } from '../../services/api'
 
@@ -16,28 +16,43 @@ const PRESETS = [
 
 export function GlobalFilters({ collapsed, onToggle }) {
   const { filters, update, reset } = useFilters()
-  const [opts, setOpts] = useState({ anos: [], regiones: [], vendedores: [], grupos: [], plantas: [] })
+  const [opts, setOpts] = useState({ anos: [], regiones: [], vendedores: [], grupos: [], lineas: [], mercados: [] })
+  const [clienteInput, setClienteInput] = useState(filters.cliente || '')
+  const debounceRef = useRef(null)
 
   useEffect(() => {
     Promise.allSettled([
       api.filterAnos(), api.filterRegiones(), api.filterVendedores(),
-      api.filterGruposComerciales(), api.filterPlantas(),
-    ]).then(([anos, reg, vend, gc, pl]) => {
+      api.filterGruposComerciales(), api.filterLineas(), api.filterMercados(),
+    ]).then(([anos, reg, vend, gc, ln, merc]) => {
       setOpts({
-        anos:       anos.status === 'fulfilled'  ? anos.value  : [],
-        regiones:   reg.status === 'fulfilled'   ? reg.value   : [],
-        vendedores: vend.status === 'fulfilled'  ? vend.value  : [],
-        grupos:     gc.status === 'fulfilled'    ? gc.value    : [],
-        plantas:    pl.status === 'fulfilled'    ? pl.value    : [],
+        anos:       anos.status  === 'fulfilled' ? anos.value  : [],
+        regiones:   reg.status   === 'fulfilled' ? reg.value   : [],
+        vendedores: vend.status  === 'fulfilled' ? vend.value  : [],
+        grupos:     gc.status    === 'fulfilled' ? gc.value    : [],
+        lineas:     ln.status    === 'fulfilled' ? ln.value    : [],
+        mercados:   merc.status  === 'fulfilled' ? merc.value  : [],
       })
     })
   }, [])
 
+  useEffect(() => {
+    if (!filters.cliente) setClienteInput('')
+  }, [filters.cliente])
+
+  const handleClienteChange = (v) => {
+    setClienteInput(v)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => update({ cliente: v.trim() }), 450)
+  }
+
   const activeFilters = [
     { key: 'region',          label: 'Región',   value: filters.region },
-    { key: 'vendedor',        label: 'Vendedor',  value: filters.vendedor },
-    { key: 'grupo_comercial', label: 'Grupo',     value: filters.grupo_comercial },
-    { key: 'planta',          label: 'Planta',    value: filters.planta },
+    { key: 'vendedor',        label: 'Vendedor', value: filters.vendedor },
+    { key: 'grupo_comercial', label: 'Grupo',    value: filters.grupo_comercial },
+    { key: 'planta',          label: 'Línea',    value: filters.planta },
+    { key: 'mercado',         label: 'Mercado',  value: filters.mercado },
+    { key: 'cliente',         label: 'Cliente',  value: filters.cliente },
   ].filter((f) => f.value)
 
   const selectMes = (m) => {
@@ -56,8 +71,13 @@ export function GlobalFilters({ collapsed, onToggle }) {
     }
   }
 
-  const isMonthActive = (m) => filters.mes === m && (!filters.mes_fin || filters.mes_fin === m)
+  const isMonthActive  = (m) => filters.mes === m && (!filters.mes_fin || filters.mes_fin === m)
   const isPresetActive = (p) => filters.mes === p.mes && filters.mes_fin === p.mes_fin
+
+  const handleReset = () => {
+    setClienteInput('')
+    reset()
+  }
 
   return (
     <div className="px-5 py-2">
@@ -89,13 +109,7 @@ export function GlobalFilters({ collapsed, onToggle }) {
         {/* Quarter / Semester presets */}
         <div className="flex flex-wrap gap-1 border-l border-surface-700 pl-3">
           {PRESETS.map((p) => (
-            <Pill
-              key={p.label}
-              label={p.label}
-              active={isPresetActive(p)}
-              onClick={() => selectPreset(p)}
-              accent
-            />
+            <Pill key={p.label} label={p.label} active={isPresetActive(p)} onClick={() => selectPreset(p)} accent />
           ))}
         </div>
 
@@ -103,7 +117,10 @@ export function GlobalFilters({ collapsed, onToggle }) {
         {activeFilters.map((f) => (
           <span
             key={f.key}
-            onClick={() => update({ [f.key]: '' })}
+            onClick={() => {
+              if (f.key === 'cliente') setClienteInput('')
+              update({ [f.key]: '' })
+            }}
             className="badge badge-blue cursor-pointer hover:bg-red-500/20 hover:text-red-400 transition-colors text-xs"
           >
             {f.label}: {f.value} ×
@@ -132,13 +149,13 @@ export function GlobalFilters({ collapsed, onToggle }) {
               ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
               : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-slate-100'
           }`}
-          title="Excluir ventas de puntos de venta (PVTA)"
+          title="Excluir puntos de venta (PVTA*, PBOGOTA)"
         >
           <Store size={12} />
           {filters.excl_pvta ? 'Sin PVTA' : 'Con PVTA'}
         </button>
 
-        <button onClick={reset} className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors">
+        <button onClick={handleReset} className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors">
           <RotateCcw size={11} /> Limpiar
         </button>
       </div>
@@ -146,10 +163,24 @@ export function GlobalFilters({ collapsed, onToggle }) {
       {/* Expanded dimension filters */}
       {!collapsed && (
         <div className="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-surface-700/50">
-          <DimSelect label="Región"         value={filters.region}          onChange={(v) => update({ region: v })}          options={opts.regiones} />
-          <DimSelect label="Vendedor"       value={filters.vendedor}        onChange={(v) => update({ vendedor: v })}        options={opts.vendedores.map((v) => ({ value: v.CODIGO_VENDEDOR || v.codigo_vendedor, label: v.NOMBRE || v.nombre || v }))} />
-          <DimSelect label="Grupo Comerc."  value={filters.grupo_comercial} onChange={(v) => update({ grupo_comercial: v })} options={opts.grupos} />
-          <DimSelect label="Planta"         value={filters.planta}          onChange={(v) => update({ planta: v })}          options={opts.plantas} />
+          <DimSelect label="Región"        value={filters.region}          onChange={(v) => update({ region: v })}          options={opts.regiones} />
+          <DimSelect label="Vendedor"      value={filters.vendedor}        onChange={(v) => update({ vendedor: v })}        options={opts.vendedores.map((v) => ({ value: v.CODIGO_VENDEDOR || v.codigo_vendedor, label: v.NOMBRE || v.nombre || v }))} />
+          <DimSelect label="Grupo Comerc." value={filters.grupo_comercial} onChange={(v) => update({ grupo_comercial: v })} options={opts.grupos} />
+          <DimSelect label="Línea Neg."    value={filters.planta}          onChange={(v) => update({ planta: v })}          options={opts.lineas} />
+          <DimSelect label="Mercado"       value={filters.mercado}         onChange={(v) => update({ mercado: v })}         options={opts.mercados} />
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-slate-400 whitespace-nowrap">Cliente</label>
+            <div className="relative">
+              <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <input
+                type="text"
+                className="bg-surface-700 border border-surface-600 text-slate-100 rounded-lg pl-6 pr-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 w-36 placeholder-slate-500"
+                placeholder="buscar nombre..."
+                value={clienteInput}
+                onChange={(e) => handleClienteChange(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -162,12 +193,8 @@ function Pill({ label, active, onClick, accent = false }) {
       onClick={onClick}
       className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
         active
-          ? accent
-            ? 'bg-cyan-600/80 text-white'
-            : 'bg-brand-600 text-white'
-          : accent
-            ? 'bg-surface-700 text-cyan-400 hover:text-cyan-200 border border-cyan-800/40'
-            : 'bg-surface-700 text-slate-400 hover:text-slate-100'
+          ? accent ? 'bg-cyan-600/80 text-white' : 'bg-brand-600 text-white'
+          : accent ? 'bg-surface-700 text-cyan-400 hover:text-cyan-200 border border-cyan-800/40' : 'bg-surface-700 text-slate-400 hover:text-slate-100'
       }`}
     >
       {label}

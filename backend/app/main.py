@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .logger import setup_logging
-from .routers import kpis, trends, segments, detail, schema_router, filters, vendedores, alertas, atributos, hallazgos, agente, ventas_diarias, presupuesto, clientes
+from .routers import kpis, trends, segments, detail, schema_router, filters, vendedores, alertas, atributos, hallazgos, agente, ventas_diarias, presupuesto, clientes, oportunidades, notificaciones
 from .scheduler.jobs import start_scheduler, stop_scheduler, trigger_manual_refresh
 from .database.cache import cache
 from .database.snowflake_connector import connector
@@ -53,6 +53,8 @@ app.include_router(agente.router)
 app.include_router(ventas_diarias.router)
 app.include_router(presupuesto.router)
 app.include_router(clientes.router)
+app.include_router(oportunidades.router)
+app.include_router(notificaciones.router)
 app.include_router(schema_router.router)
 
 

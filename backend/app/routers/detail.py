@@ -59,7 +59,7 @@ def get_detail(
     if grupo_comercial:
         cond.append("dgc.NOMBRE_GRUPO = %s"); params.append(grupo_comercial)
     if planta:
-        cond.append("dgp.PLANTA = %s"); params.append(planta)
+        cond.append("dgp.LINEA_NEGOCIO = %s"); params.append(planta)
 
     join_str  = " ".join(joins)
     where_str = "WHERE " + " AND ".join(cond)

@@ -321,7 +321,7 @@ export function DiccionarioView() {
       <div>
         <h1 className="text-xl font-bold text-slate-100">Diccionario de Datos</h1>
         <p className="text-slate-500 text-xs mt-0.5">
-          Fuentes, tablas, métricas y conceptos del modelo BI Ventas · ALICO S.A.
+          Fuentes, tablas, métricas y conceptos del modelo BI Ventas · ALICO SAS BIC
         </p>
       </div>
 

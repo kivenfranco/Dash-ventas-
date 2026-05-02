@@ -48,7 +48,7 @@ def get_trends(
             dim_joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO")
             dim_cond.append("dgc.NOMBRE_GRUPO = %s"); dim_params.append(grupo_comercial)
         if planta:
-            dim_cond.append("dgp.PLANTA = %s"); dim_params.append(planta)
+            dim_cond.append("dgp.LINEA_NEGOCIO = %s"); dim_params.append(planta)
     if excl_exportacion:
         if not any("DIM_DOMICILIO" in j for j in dim_joins):
             dim_joins.append(f"LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY")

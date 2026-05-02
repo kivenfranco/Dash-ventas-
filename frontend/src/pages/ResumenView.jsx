@@ -127,7 +127,8 @@ export function ResumenView() {
   const { data: trends,    loading: tL } = useData(() => api.trends(filters),                  [filters, refreshKey])
   const { data: ppPlantas, loading: ppL} = useData(() => api.presupuesto(filters, 'linea_negocio', 20), [filters, refreshKey])
   const { data: ppRegiones,loading: prL} = useData(() => api.presupuesto(filters, 'region', 20),[filters, refreshKey])
-  const { data: diarias,   loading: dL } = useData(() => api.ventasDiarias(filters, 60),        [filters, refreshKey])
+  const { data: diarias,   loading: dL    } = useData(() => api.ventasDiarias(filters, 60),        [filters, refreshKey])
+  const { data: pvtaData,  loading: pvtaL } = useData(() => api.ventasDiariasPvta(filters, 120),   [filters, refreshKey])
 
   const k = kpis || {}
   const period = formatPeriod(filters.ano, filters.mes, filters.mes_fin)
@@ -232,6 +233,80 @@ export function ResumenView() {
         </div>
         <VentasDiariasTable data={diarias} loading={dL} />
       </div>
+
+      {/* === Row 7: PVTA daily pivot === */}
+      <div className="card">
+        <div className="flex items-center gap-2 mb-4">
+          <Calendar size={14} className="text-brand-400" />
+          <h2 className="text-sm font-semibold text-slate-200">Ventas Diarias — Puntos de Venta</h2>
+          <span className="text-xs text-slate-500 ml-1">— PVTA Medellín, Cali, Norte y Bogotá</span>
+        </div>
+        <PvtaDiariasTable data={pvtaData} loading={pvtaL} />
+      </div>
+    </div>
+  )
+}
+
+const _DAYS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
+const _fmtDay  = (s) => { if (!s) return '—'; return _DAYS[new Date(s + 'T12:00:00').getDay()] }
+const _fmtDate = (s) => { if (!s) return '—'; return new Date(s + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) }
+const _fmtM    = (v) => v ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v) : '—'
+
+function PvtaDiariasTable({ data, loading }) {
+  if (loading) return (
+    <div className="space-y-1.5">
+      {[...Array(7)].map((_, i) => <div key={i} className="animate-pulse h-7 bg-surface-700 rounded" />)}
+    </div>
+  )
+  const rows = [...(data?.data || [])].reverse()
+  if (!rows.length) return <p className="text-slate-500 text-xs text-center py-6">Sin datos</p>
+
+  const totMede = rows.reduce((s, r) => s + (r.pvta_medellin || 0), 0)
+  const totCali = rows.reduce((s, r) => s + (r.pvta_cali     || 0), 0)
+  const totNort = rows.reduce((s, r) => s + (r.pvtanorte     || 0), 0)
+  const totBog  = rows.reduce((s, r) => s + (r.pbogota       || 0), 0)
+  const totAll  = totMede + totCali + totNort + totBog
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs min-w-[580px]">
+        <thead>
+          <tr className="text-left border-b border-surface-700 text-slate-400">
+            <th className="pb-2 font-medium">Fecha</th>
+            <th className="pb-2 font-medium">Día</th>
+            <th className="pb-2 font-medium text-right">PVTA MEDELLÍN</th>
+            <th className="pb-2 font-medium text-right">PVTA CALI</th>
+            <th className="pb-2 font-medium text-right">PVTANORTE</th>
+            <th className="pb-2 font-medium text-right">PBOGOTÁ</th>
+            <th className="pb-2 font-medium text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((d, i) => {
+            const dia = _fmtDay(d.fecha)
+            const isWeekend = dia === 'Sáb' || dia === 'Dom'
+            return (
+              <tr key={i} className={`border-b border-surface-700/30 hover:bg-surface-700/20 transition-colors ${isWeekend ? 'opacity-60' : ''}`}>
+                <td className="py-1.5 text-slate-300 font-medium">{_fmtDate(d.fecha)}</td>
+                <td className={`py-1.5 ${isWeekend ? 'text-amber-400' : 'text-slate-500'}`}>{dia}</td>
+                <td className="py-1.5 text-right text-slate-300">{_fmtM(d.pvta_medellin)}</td>
+                <td className="py-1.5 text-right text-slate-300">{_fmtM(d.pvta_cali)}</td>
+                <td className="py-1.5 text-right text-slate-300">{_fmtM(d.pvtanorte)}</td>
+                <td className="py-1.5 text-right text-slate-300">{_fmtM(d.pbogota)}</td>
+                <td className="py-1.5 text-right font-semibold text-brand-300">{_fmtM(d.total)}</td>
+              </tr>
+            )
+          })}
+          <tr className="border-t-2 border-surface-600 font-bold text-slate-100">
+            <td className="py-2" colSpan={2}>TOTAL</td>
+            <td className="py-2 text-right text-brand-300">{_fmtM(totMede)}</td>
+            <td className="py-2 text-right text-brand-300">{_fmtM(totCali)}</td>
+            <td className="py-2 text-right text-brand-300">{_fmtM(totNort)}</td>
+            <td className="py-2 text-right text-brand-300">{_fmtM(totBog)}</td>
+            <td className="py-2 text-right text-brand-300">{_fmtM(totAll)}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   )
 }

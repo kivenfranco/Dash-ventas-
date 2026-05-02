@@ -93,7 +93,7 @@ class KPIEngine:
                 cond.append("dgc.NOMBRE_GRUPO = %s")
                 params.append(self.grupo_comercial)
             if self.planta:
-                cond.append("dgp.PLANTA = %s")
+                cond.append("dgp.LINEA_NEGOCIO = %s")
                 params.append(self.planta)
 
         if self.excl_exportacion:

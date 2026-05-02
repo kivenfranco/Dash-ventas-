@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     REFRESH_HOUR: int = 3
     REFRESH_MINUTE: int = 0
 
+    # SMTP — Office 365
+    SMTP_HOST: str = "smtp.office365.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_NAME: str = "BI Ventas ALICO"
+    ALERTAS_ENABLED: bool = True
+
     LOG_LEVEL: str = "INFO"
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000

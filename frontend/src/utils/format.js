@@ -16,7 +16,6 @@ export function fmtCOP(v, decimals = 2) {
   if (v == null || isNaN(v)) return '—'
   const sign = v < 0 ? '-' : ''
   const a = Math.abs(v)
-  if (a >= 1e12) return `${sign}$${(a / 1e12).toFixed(decimals)}B`
   if (a >= 1e9)  return `${sign}$${(a / 1e9).toFixed(decimals)}MM`
   if (a >= 1e6)  return `${sign}$${(a / 1e6).toFixed(decimals)}M`
   if (a >= 1e3)  return `${sign}$${(a / 1e3).toFixed(0)}K`

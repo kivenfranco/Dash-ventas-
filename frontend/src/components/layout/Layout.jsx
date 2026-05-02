@@ -5,7 +5,7 @@ import { GlobalFilters } from '../filters/GlobalFilters'
 import {
   LayoutDashboard, TrendingUp, MapPin, Users2,
   Package, Users, BellRing, RefreshCw, Activity,
-  Layers, Lightbulb, BotMessageSquare, LayoutGrid, Globe, Target, BookOpen,
+  Lightbulb, BotMessageSquare, LayoutGrid, Globe, Target, BookOpen, Rocket, Mail,
 } from 'lucide-react'
 import { api } from '../../services/api'
 
@@ -17,13 +17,14 @@ const TABS = [
   { to: '/productos',  label: 'Productos',  icon: Package         },
   { to: '/clientes',   label: 'Clientes',   icon: Users           },
   { to: '/alertas',    label: 'Alertas',    icon: BellRing        },
-  { to: '/atributos',  label: 'Atributos',  icon: Layers          },
-  { to: '/hallazgos',  label: 'Hallazgos',  icon: Lightbulb       },
-  { to: '/agente',      label: 'Agente BI',  icon: BotMessageSquare },
+  { to: '/mercados',   label: 'Mercados',   icon: Globe           },
+  { to: '/hallazgos',     label: 'Hallazgos',     icon: Lightbulb       },
+  { to: '/oportunidades', label: 'Oportunidades', icon: Rocket          },
+  { to: '/agente',        label: 'Agente BI',     icon: BotMessageSquare },
   { to: '/dimensiones',  label: 'Dimensiones',  icon: LayoutGrid },
-  { to: '/mercados',     label: 'Mercados',     icon: Globe      },
   { to: '/presupuesto',  label: 'Presupuesto',  icon: Target     },
-  { to: '/diccionario',  label: 'Diccionario',  icon: BookOpen   },
+  { to: '/diccionario',    label: 'Diccionario',    icon: BookOpen },
+  { to: '/notificaciones', label: 'Notificaciones', icon: Mail     },
 ]
 
 function TabBar({ onRefresh, refreshing }) {
@@ -34,8 +35,8 @@ function TabBar({ onRefresh, refreshing }) {
       <div className="flex items-center justify-between px-6 h-12 border-b border-surface-700/50">
         <div className="flex items-center gap-3">
           <Activity size={18} className="text-brand-400" />
-          <span className="font-bold text-slate-100 text-sm tracking-wide">Centro de Inteligencia · Ventas</span>
-          <span className="text-slate-600 text-xs">ALICO S.A.</span>
+          <span className="font-bold text-slate-100 text-sm tracking-wide">Centro de Inteligencia de negocio</span>
+          <span className="text-slate-600 text-xs">ALICO SAS BIC</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500">{new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</span>

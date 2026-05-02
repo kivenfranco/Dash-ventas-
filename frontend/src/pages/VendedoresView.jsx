@@ -12,9 +12,10 @@ const PALETTE = ['#6366f1','#06b6d4','#10b981','#f59e0b','#f43f5e','#a855f7','#e
 
 function TTip({ active, payload, label }) {
   if (!active || !payload?.length) return null
+  const full = payload[0]?.payload?.full || label
   return (
     <div className="bg-surface-800 border border-surface-600 rounded-xl px-4 py-3 shadow-xl text-xs min-w-52">
-      <p className="text-slate-200 font-semibold mb-2 truncate max-w-48">{label}</p>
+      <p className="text-slate-200 font-semibold mb-2">{full}</p>
       {payload.map((p) => (
         <div key={p.dataKey} className="flex justify-between gap-4 py-0.5">
           <span className="text-slate-400">{p.name}</span>
@@ -46,9 +47,12 @@ export function VendedoresView() {
   const { data, loading } = useData(() => api.vendedores(filters), [filters, refreshKey])
   const rows = data?.data || []
 
+  const shortName = (n) => n?.length > 22 ? n.slice(0, 20) + '…' : (n || '')
+
   const top10 = rows.slice(0, 10)
   const chartData = top10.map((d) => ({
-    name: d.nombre?.split(' ')[0] || d.codigo_vendedor,
+    name: shortName(d.nombre || d.codigo_vendedor),
+    full: d.nombre || d.codigo_vendedor,
     ventas_netas: d.ventas_netas,
     pp_valor: d.pp_valor,
   }))
@@ -57,9 +61,13 @@ export function VendedoresView() {
     .filter((d) => d.cump_pp_valor_pct != null)
     .slice(0, 12)
     .map((d) => ({
-      name: d.nombre?.split(' ')[0] || d.codigo_vendedor,
+      name: shortName(d.nombre || d.codigo_vendedor),
+      full: d.nombre || d.codigo_vendedor,
       cump_pp_valor_pct: d.cump_pp_valor_pct,
     }))
+
+  const chartH = Math.max(top10.length * 48 + 20, 280)
+  const cumpH  = Math.max(cumpData.length * 36 + 20, 280)
 
   const period = filters.mes ? `${MONTH_NAMES[filters.mes]} ${filters.ano}` : `Año ${filters.ano}`
 
@@ -76,15 +84,15 @@ export function VendedoresView() {
         <div className="card">
           <h2 className="text-sm font-semibold text-slate-200 mb-0.5">Ventas vs Presupuesto · Top 10</h2>
           <p className="text-xs text-slate-500 mb-4">ventas netas vs PP valor mes</p>
-          <div className={`h-64 ${loading ? 'opacity-40 animate-pulse' : ''}`}>
+          <div className={loading ? 'opacity-40 animate-pulse' : ''} style={{ height: chartH }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+              <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }} barCategoryGap="25%">
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
                 <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={fmtCOP} />
-                <YAxis type="category" dataKey="name" tick={{ fill: '#cbd5e1', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+                <YAxis type="category" dataKey="name" tick={{ fill: '#cbd5e1', fontSize: 11 }} axisLine={false} tickLine={false} width={160} />
                 <Tooltip content={<TTip />} />
-                <Bar dataKey="ventas_netas" name="Ventas" fill="#6366f1" radius={[0, 3, 3, 0]} />
-                <Bar dataKey="pp_valor" name="Presupuesto" fill="#f59e0b33" stroke="#f59e0b" strokeWidth={1} radius={[0, 3, 3, 0]} />
+                <Bar dataKey="ventas_netas" name="Ventas" fill="#6366f1" radius={[0, 3, 3, 0]} barSize={14} />
+                <Bar dataKey="pp_valor" name="Presupuesto" fill="#f59e0b33" stroke="#f59e0b" strokeWidth={1} radius={[0, 3, 3, 0]} barSize={14} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -94,15 +102,15 @@ export function VendedoresView() {
         <div className="card">
           <h2 className="text-sm font-semibold text-slate-200 mb-0.5">Cumplimiento PP Valor (%)</h2>
           <p className="text-xs text-slate-500 mb-4">ventas / presupuesto · Top 12</p>
-          <div className={`h-64 ${loading ? 'opacity-40 animate-pulse' : ''}`}>
+          <div className={loading ? 'opacity-40 animate-pulse' : ''} style={{ height: cumpH }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cumpData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+              <BarChart data={cumpData} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }} barCategoryGap="30%">
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
                 <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
-                <YAxis type="category" dataKey="name" tick={{ fill: '#cbd5e1', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+                <YAxis type="category" dataKey="name" tick={{ fill: '#cbd5e1', fontSize: 11 }} axisLine={false} tickLine={false} width={160} />
                 <Tooltip content={<TTip />} />
                 <ReferenceLine x={100} stroke="#f59e0b" strokeDasharray="4 2" />
-                <Bar dataKey="cump_pp_valor_pct" name="Cump PP %" radius={[0, 3, 3, 0]}>
+                <Bar dataKey="cump_pp_valor_pct" name="Cump PP %" radius={[0, 3, 3, 0]} barSize={18}>
                   {cumpData.map((entry, i) => {
                     const v = entry.cump_pp_valor_pct || 0
                     return <Cell key={i} fill={v >= 100 ? '#10b981' : v >= 80 ? '#6366f1' : v >= 60 ? '#f59e0b' : '#f43f5e'} />

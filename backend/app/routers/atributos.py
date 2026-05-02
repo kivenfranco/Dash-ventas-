@@ -19,21 +19,27 @@ _VALID_GROUPS = "^(es_stock|estructura|dispositivo|tipo_producto|tipo_fabricacio
 
 _DIM_MAP = {
     # (sql_expr, dim_source, filter_nulls)
-    "es_stock":         ("CASE WHEN dp.ES_STOCK THEN 'Stock' ELSE 'No Stock' END", "parte",  False),
-    "estructura":       ("dp.ESTRUCTURA",         "parte",  True),
-    "dispositivo":      ("dp.DISPOSITIVO",         "parte",  True),
-    "tipo_producto":    ("dp.TIPO_PRODUCTO",       "parte",  True),
-    "tipo_fabricacion": ("dgc.TIPO_FABRICACION",   "grupo",  True),
-    "descripcion_parte":("dp.DESCRIPCION",         "parte",  True),
+    "es_stock":         ("CASE WHEN dp.ES_STOCK THEN 'Stock' ELSE 'No Stock' END",    "parte",  False),
+    "estructura":       ("COALESCE(dp.ESTRUCTURA,    'Sin Clasificar')",               "parte",  False),
+    "dispositivo":      ("COALESCE(dp.DISPOSITIVO,   'Sin Clasificar')",               "parte",  False),
+    "tipo_producto":    ("COALESCE(dp.TIPO_PRODUCTO, 'Sin Clasificar')",               "parte",  False),
+    "tipo_fabricacion": ("dgc.TIPO_FABRICACION",                                       "grupo",  True),
+    "descripcion_parte":("dp.DESCRIPCION",                                             "parte",  True),
 }
 
 
-def _build_sql(cfg, group_by, ano, mes, region, vendedor, planta, grupo_comercial, mes_max=None, excl_exportacion=False, excl_pvta=False, top_n=20):
+def _build_sql(cfg, group_by, ano, mes, region, vendedor, planta, grupo_comercial, mes_max=None, excl_exportacion=False, excl_pvta=False, top_n=20, mes_fin=None):
     dim_col, dim_src, filter_nulls = _DIM_MAP[group_by]
 
     joins = []
     if dim_src in ("parte", None):
-        joins.append(f"LEFT JOIN {cfg.TM('DIM_PARTE')} dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO")
+        # QUALIFY deduplica DIM_PARTE (tiene múltiples filas por producto)
+        dp_sub = (
+            f"(SELECT CODIGO_PRODUCTO, ES_STOCK, ESTRUCTURA, TIPO_PRODUCTO, DISPOSITIVO, DESCRIPCION "
+            f"FROM {cfg.TM('DIM_PARTE')} "
+            f"QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY CODIGO_PRODUCTO) = 1)"
+        )
+        joins.append(f"LEFT JOIN {dp_sub} dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO")
     if dim_src == "grupo":
         joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO")
         joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO")
@@ -43,7 +49,9 @@ def _build_sql(cfg, group_by, ano, mes, region, vendedor, planta, grupo_comercia
         cond.append(f"{dim_col} IS NOT NULL")
     params: list = [ano]
 
-    if mes:
+    if mes and mes_fin and mes_fin > mes:
+        cond.append("fv.PERIODO_FISCAL BETWEEN %s AND %s"); params.extend([mes, mes_fin])
+    elif mes:
         cond.append("fv.PERIODO_FISCAL = %s"); params.append(mes)
     elif mes_max:
         cond.append("fv.PERIODO_FISCAL <= %s"); params.append(mes_max)
@@ -56,7 +64,7 @@ def _build_sql(cfg, group_by, ano, mes, region, vendedor, planta, grupo_comercia
     if planta:
         if not any("DIM_GRUPO_PRODUCTO" in j for j in joins):
             joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO")
-        cond.append("dgp.PLANTA = %s"); params.append(planta)
+        cond.append("dgp.LINEA_NEGOCIO = %s"); params.append(planta)
     if grupo_comercial:
         if not any("DIM_GRUPO_PRODUCTO" in j for j in joins):
             joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO")
@@ -67,9 +75,9 @@ def _build_sql(cfg, group_by, ano, mes, region, vendedor, planta, grupo_comercia
     if excl_exportacion:
         if not any("DIM_DOMICILIO" in j for j in joins):
             joins.append(f"LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY")
-        cond.append("(UPPER(dd.DESCRIPCION_REGION) NOT LIKE '%EXPORTACION%' OR dd.DESCRIPCION_REGION IS NULL)")
+        cond.append("(UPPER(dd.DESCRIPCION_REGION) NOT LIKE '%%EXPORTACION%%' OR dd.DESCRIPCION_REGION IS NULL)")
     if excl_pvta:
-        cond.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%' OR fv.CODIGO_VENDEDOR IS NULL)")
+        cond.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)")
 
     seen, uniq = set(), []
     for j in joins:
@@ -102,6 +110,7 @@ def get_atributos(
     group_by: str = Query("es_stock", pattern=_VALID_GROUPS),
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
+    mes_fin: Optional[int] = Query(None, ge=1, le=12),
     region: Optional[str] = None,
     vendedor: Optional[str] = None,
     planta: Optional[str] = None,
@@ -111,7 +120,7 @@ def get_atributos(
     excl_pvta: bool = Query(False),
 ):
     cfg = get_settings()
-    key = f"atr:{group_by}:{ano}:{mes}:{region}:{vendedor}:{planta}:{grupo_comercial}:{top_n}:{excl_exportacion}:{excl_pvta}"
+    key = f"atr:{group_by}:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{planta}:{grupo_comercial}:{top_n}:{excl_exportacion}:{excl_pvta}"
     cached = cache.get(key)
     if cached:
         return cached
@@ -121,18 +130,17 @@ def get_atributos(
     kw = dict(excl_exportacion=excl_exportacion, excl_pvta=excl_pvta, top_n=top_n)
 
     try:
-        sql_cur, p_cur = _build_sql(cfg, group_by, ano, mes, region, vendedor, planta, grupo_comercial, **kw)
-        logger.debug("Atributos SQL: %s | params: %s", sql_cur, p_cur)
+        sql_cur, p_cur = _build_sql(cfg, group_by, ano, mes, region, vendedor, planta, grupo_comercial, mes_fin=mes_fin, **kw)
         df = connector.query(sql_cur, p_cur)
         df.columns = [c.lower() for c in df.columns]
 
-        sql_ant, p_ant = _build_sql(cfg, group_by, ano - 1, mes, region, vendedor, planta, grupo_comercial, mes_max=ytd_cap, top_n=9999, **{k: v for k, v in kw.items() if k != 'top_n'})
+        sql_ant, p_ant = _build_sql(cfg, group_by, ano - 1, mes, region, vendedor, planta, grupo_comercial, mes_max=ytd_cap, top_n=9999, mes_fin=mes_fin, **{k: v for k, v in kw.items() if k != 'top_n'})
         df_ant = connector.query(sql_ant, p_ant)
         df_ant.columns = [c.lower() for c in df_ant.columns]
         df_ant = df_ant.rename(columns={"ventas_netas": "ventas_netas_ant", "cantidad": "cantidad_ant"})
 
         df_mom = None
-        if mes:
+        if mes and not (mes_fin and mes_fin > mes):
             mes_ant = mes - 1 if mes > 1 else 12
             ano_mom = ano if mes > 1 else ano - 1
             sql_mom, p_mom = _build_sql(cfg, group_by, ano_mom, mes_ant, region, vendedor, planta, grupo_comercial, top_n=9999, **{k: v for k, v in kw.items() if k != 'top_n'})

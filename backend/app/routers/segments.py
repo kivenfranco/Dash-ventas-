@@ -14,7 +14,7 @@ from ..database.snowflake_connector import connector
 router = APIRouter(prefix="/api/segments", tags=["Segments"])
 logger = logging.getLogger(__name__)
 
-_VALID_GROUPS = "^(region|vendedor|grupo_comercial|tipo_fabricacion|tipo_cliente|linea_negocio|unidad_medida_venta|descripcion_parte|mercado)$"
+_VALID_GROUPS = "^(region|vendedor|grupo_comercial|tipo_fabricacion|tipo_cliente|linea_negocio|unidad_medida_venta|descripcion_parte|mercado|organico)$"
 
 
 def _build_sql(cfg, group_by, ano, mes, region, vendedor, grupo_comercial, planta, top_n, mes_max=None, excl_exportacion=False, excl_pvta=False, mes_fin=None):
@@ -55,11 +55,15 @@ def _build_sql(cfg, group_by, ano, mes, region, vendedor, grupo_comercial, plant
         ),
         "descripcion_parte": (
             "dp.DESCRIPCION",
-            [f"LEFT JOIN {cfg.TM('DIM_PARTE')} dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO"],
+            [f"LEFT JOIN (SELECT CODIGO_PRODUCTO, DESCRIPCION FROM {cfg.TM('DIM_PARTE')} QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY CODIGO_PRODUCTO) = 1) dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO"],
         ),
         "mercado": (
-            "dvpp.MERCADO",
-            [f"LEFT JOIN (SELECT DISTINCT VENDEDOR, MERCADO FROM {cfg.T('DIM_VENDEDOR_PP')}) dvpp ON fv.CODIGO_VENDEDOR = dvpp.VENDEDOR"],
+            "COALESCE(vm.MERCADO, 'Exportación')",
+            [f"LEFT JOIN (SELECT VENDEDOR, MERCADO FROM (SELECT VENDEDOR, MERCADO, ROW_NUMBER() OVER (PARTITION BY VENDEDOR ORDER BY ANO DESC, MES_NUM DESC) AS rn FROM {cfg.T('PP_VENDEDOR_VALOR')}) t WHERE t.rn = 1) vm ON fv.CODIGO_VENDEDOR = vm.VENDEDOR"],
+        ),
+        "organico": (
+            "COALESCE(ppv.TIPO_VENTA, 'Organico')",
+            [f"LEFT JOIN (SELECT VENDEDOR, TIPO_VENTA FROM (SELECT VENDEDOR, TIPO_VENTA, ROW_NUMBER() OVER (PARTITION BY VENDEDOR ORDER BY ANO DESC, MES_NUM DESC) AS rn FROM {cfg.T('PP_VENDEDOR_VALOR')}) t WHERE t.rn = 1) ppv ON fv.CODIGO_VENDEDOR = ppv.VENDEDOR"],
         ),
     }
 
@@ -141,6 +145,8 @@ def get_segments(
         return cached
 
     kw = dict(excl_exportacion=excl_exportacion, excl_pvta=excl_pvta)
+    df_pp = df_pp_cant = None
+
     try:
         sql, params, dim_col, uniq = _build_sql(cfg, group_by, ano, mes, region, vendedor, grupo_comercial, planta, top_n, mes_fin=mes_fin, **kw)
         df = connector.query(sql, params)
@@ -165,6 +171,61 @@ def get_segments(
                 df_mom.columns = [c.lower() for c in df_mom.columns]
                 df_mom = df_mom.rename(columns={"ventas_netas": "ventas_mes_ant"})
 
+        # ── PP por dimensión ──────────────────────────────────────────────────
+        def _pp_base_cond():
+            c, p = ["ANO = %s"], [ano]
+            if mes and mes_fin and mes_fin > mes:
+                c.append("MES_NUM BETWEEN %s AND %s"); p.extend([mes, mes_fin])
+            elif mes:
+                c.append("MES_NUM = %s"); p.append(mes)
+            return c, p
+
+        if group_by in ("linea_negocio", "grupo_comercial"):
+            col = {"linea_negocio": "LINEA_NEGOCIO", "grupo_comercial": "GRUPO_COMERCIAL"}[group_by]
+            c, p = _pp_base_cond()
+            if region:
+                c.append("REGION = %s"); p.append(region)
+            if planta:
+                c.append("PLANTA = %s"); p.append(planta)
+            if grupo_comercial and group_by != "grupo_comercial":
+                c.append("GRUPO_COMERCIAL = %s"); p.append(grupo_comercial)
+            if excl_exportacion:
+                c.append("UPPER(REGION) NOT LIKE '%%EXPORTACION%%'")
+            df_pp = connector.query(
+                f"SELECT {col} AS dimension, COALESCE(SUM(PRESUPUESTO_MES),0) AS presupuesto "
+                f"FROM {cfg.T('PP_REGION_PLANTA_GRUPO')} WHERE {' AND '.join(c)} GROUP BY 1", p
+            )
+            if not df_pp.empty:
+                df_pp.columns = [c2.lower() for c2 in df_pp.columns]
+
+        elif group_by in ("unidad_medida_venta", "mercado", "organico"):
+            pp_dim_col = {"unidad_medida_venta": "UNIDAD_MEDIDA", "mercado": "MERCADO", "organico": "TIPO_VENTA"}[group_by]
+            c, p = _pp_base_cond()
+            if region:
+                c.append("REGION = %s"); p.append(region)
+            if planta:
+                c.append("PLANTA = %s"); p.append(planta)
+            if grupo_comercial:
+                c.append("GRUPO_COMERCIAL = %s"); p.append(grupo_comercial)
+            if excl_exportacion:
+                c.append("UPPER(REGION) NOT LIKE '%%EXPORTACION%%'")
+            if excl_pvta:
+                c.append("UPPER(VENDEDOR) NOT LIKE 'PVTA%%'")
+            wh = " AND ".join(c)
+            df_pp = connector.query(
+                f"SELECT {pp_dim_col} AS dimension, COALESCE(SUM(PP_VALOR_MES),0) AS presupuesto "
+                f"FROM {cfg.T('PP_VENDEDOR_VALOR')} WHERE {wh} GROUP BY 1", p
+            )
+            if not df_pp.empty:
+                df_pp.columns = [c2.lower() for c2 in df_pp.columns]
+            if group_by == "unidad_medida_venta":
+                df_pp_cant = connector.query(
+                    f"SELECT UNIDAD_MEDIDA AS dimension, COALESCE(SUM(PP_CANTIDAD_MES),0) AS presupuesto_cantidad "
+                    f"FROM {cfg.T('PP_VENDEDOR_CANTIDAD')} WHERE {wh} GROUP BY 1", p
+                )
+                if not df_pp_cant.empty:
+                    df_pp_cant.columns = [c2.lower() for c2 in df_pp_cant.columns]
+
     except Exception as exc:
         logger.error("Segments error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc))
@@ -176,6 +237,17 @@ def get_segments(
     if df_mom is not None:
         df = df.merge(df_mom[["dimension", "ventas_mes_ant"]], on="dimension", how="left")
         df["ventas_mes_ant"] = df["ventas_mes_ant"].fillna(0)
+
+    # Merge PP data
+    if df_pp is not None and not df_pp.empty:
+        df = df.merge(df_pp, on="dimension", how="left")
+        df["presupuesto"] = df["presupuesto"].fillna(0)
+    if df_pp_cant is not None and not df_pp_cant.empty:
+        df = df.merge(df_pp_cant, on="dimension", how="left")
+        df["presupuesto_cantidad"] = df["presupuesto_cantidad"].fillna(0)
+
+    has_pp      = "presupuesto" in df.columns
+    has_pp_cant = "presupuesto_cantidad" in df.columns
 
     total = float(df["ventas_netas"].sum()) or 1.0
     records = []
@@ -203,6 +275,15 @@ def get_segments(
         if vn_mom is not None:
             rec["ventas_mes_ant"]     = round(vn_mom, 2)
             rec["variacion_mom_pct"]  = _pct(vn, vn_mom)
+        if has_pp:
+            pp = float(r.get("presupuesto") or 0)
+            rec["presupuesto"]  = round(pp, 2)
+            rec["cump_pp_pct"]  = round((vn / pp) * 100, 2) if pp > 0 else None
+        if has_pp_cant:
+            pp_c = float(r.get("presupuesto_cantidad") or 0)
+            cant = float(r.cantidad or 0)
+            rec["presupuesto_cantidad"]    = round(pp_c, 2)
+            rec["cump_pp_cantidad_pct"]    = round((cant / pp_c) * 100, 2) if pp_c > 0 else None
         records.append(rec)
 
     result = {"group_by": group_by, "ano": ano, "mes": mes, "data": records}

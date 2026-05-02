@@ -58,8 +58,8 @@ def _dim_cfg(cfg, group_by: str):
             ],
         ),
         "mercado": (
-            "dvpp.MERCADO",
-            [f"LEFT JOIN (SELECT DISTINCT VENDEDOR, MERCADO FROM {cfg.T('DIM_VENDEDOR_PP')}) dvpp ON fv.CODIGO_VENDEDOR = dvpp.VENDEDOR"],
+            "COALESCE(vm.MERCADO, 'Exportación')",
+            [f"LEFT JOIN (SELECT VENDEDOR, MERCADO FROM (SELECT VENDEDOR, MERCADO, ROW_NUMBER() OVER (PARTITION BY VENDEDOR ORDER BY ANO DESC, MES_NUM DESC) AS rn FROM {cfg.T('PP_VENDEDOR_VALOR')}) t WHERE t.rn = 1) vm ON fv.CODIGO_VENDEDOR = vm.VENDEDOR"],
         ),
         "linea_negocio": (
             "dgp.LINEA_NEGOCIO",
@@ -108,7 +108,7 @@ def _fact_query(cfg, dim_col, dim_joins, ano, mes, mes_max,
     if planta:
         if not any("DIM_GRUPO_PRODUCTO" in j for j in joins):
             joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO")
-        cond.append("dgp.PLANTA = %s"); params.append(planta)
+        cond.append("dgp.LINEA_NEGOCIO = %s"); params.append(planta)
     if excl_exportacion:
         if not any("DIM_DOMICILIO" in j for j in joins):
             joins.append(f"LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY")

@@ -11,6 +11,7 @@ const DEFAULT_FILTERS = {
   grupo_comercial: '',
   planta: '',
   mercado: '',
+  cliente: '',
   excl_exportacion: false,
   excl_pvta: false,
 }

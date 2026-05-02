@@ -27,6 +27,7 @@ def _safe_pct(a, b):
 def get_vendedores(
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
+    mes_fin: Optional[int] = Query(None, ge=1, le=12),
     region: Optional[str] = None,
     planta: Optional[str] = None,
     grupo_comercial: Optional[str] = None,
@@ -34,7 +35,7 @@ def get_vendedores(
     excl_pvta: bool = Query(False),
 ):
     cfg = get_settings()
-    key = f"vend:{ano}:{mes}:{region}:{planta}:{grupo_comercial}:{excl_exportacion}:{excl_pvta}"
+    key = f"vend:{ano}:{mes}:{mes_fin}:{region}:{planta}:{grupo_comercial}:{excl_exportacion}:{excl_pvta}"
     cached = cache.get(key)
     if cached:
         return cached
@@ -50,23 +51,25 @@ def get_vendedores(
             joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO")
             cond.append("dgc.NOMBRE_GRUPO = %s"); params.append(grupo_comercial)
         if planta:
-            cond.append("dgp.PLANTA = %s"); params.append(planta)
+            cond.append("dgp.LINEA_NEGOCIO = %s"); params.append(planta)
     if excl_exportacion:
         if not any("DIM_DOMICILIO" in j for j in joins):
             joins.append(f"LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY")
-        cond.append("(UPPER(dd.DESCRIPCION_REGION) NOT LIKE '%EXPORTACION%' OR dd.DESCRIPCION_REGION IS NULL)")
+        cond.append("(UPPER(dd.DESCRIPCION_REGION) NOT LIKE '%%EXPORTACION%%' OR dd.DESCRIPCION_REGION IS NULL)")
     if excl_pvta:
-        cond.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%' OR fv.CODIGO_VENDEDOR IS NULL)")
+        cond.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)")
     join_str = " ".join(joins)
 
     # When viewing full year of current year, compare same YTD period in prior year
     today = date.today()
     ytd_cap = today.month if (not mes and ano == today.year) else None
 
-    def _where(ano_val, mes_val, extra_cond, mes_max=None):
-        c = [f"fv.ANO_FISCAL = %s"]
+    def _where(ano_val, mes_val, extra_cond, mes_max=None, mfin=None):
+        c = ["fv.ANO_FISCAL = %s"]
         p = [ano_val]
-        if mes_val:
+        if mes_val and mfin and mfin > mes_val:
+            c.append("fv.PERIODO_FISCAL BETWEEN %s AND %s"); p.extend([mes_val, mfin])
+        elif mes_val:
             c.append("fv.PERIODO_FISCAL = %s"); p.append(mes_val)
         elif mes_max:
             c.append("fv.PERIODO_FISCAL <= %s"); p.append(mes_max)
@@ -74,7 +77,7 @@ def get_vendedores(
         return "WHERE " + " AND ".join(c), p + params
 
     # Current period
-    w_cur, p_cur = _where(ano, mes, cond)
+    w_cur, p_cur = _where(ano, mes, cond, mfin=mes_fin)
     sql_cur = f"""
         SELECT fv.CODIGO_VENDEDOR,
                COALESCE(SUM(fv.VENTAS_NETAS),0)  AS ventas_netas,
@@ -86,7 +89,7 @@ def get_vendedores(
 
     # Previous year same period (capped at same YTD month for full-year view)
     ano_ant = ano - 1
-    w_ant, p_ant = _where(ano_ant, mes, cond, mes_max=ytd_cap)
+    w_ant, p_ant = _where(ano_ant, mes, cond, mes_max=ytd_cap, mfin=mes_fin)
     sql_ant = f"""
         SELECT fv.CODIGO_VENDEDOR,
                COALESCE(SUM(fv.VENTAS_NETAS),0) AS ventas_netas_ant
@@ -94,8 +97,8 @@ def get_vendedores(
         GROUP BY 1
     """
 
-    # Previous month
-    if mes:
+    # Previous month (only for single-month, skip for ranges)
+    if mes and not (mes_fin and mes_fin > mes):
         mes_ant = mes - 1 if mes > 1 else 12
         ano_mes_ant = ano if mes > 1 else ano - 1
         w_mom, p_mom = _where(ano_mes_ant, mes_ant, cond)
@@ -105,11 +108,15 @@ def get_vendedores(
             FROM {cfg.T('FACT_VENTAS')} fv {join_str} {w_mom}
             GROUP BY 1
         """
+    else:
+        sql_mom = None
 
     # PP Valor por vendedor
     pp_cond = ["ANO = %s"]
     pp_params = [ano]
-    if mes:
+    if mes and mes_fin and mes_fin > mes:
+        pp_cond.append("MES_NUM BETWEEN %s AND %s"); pp_params.extend([mes, mes_fin])
+    elif mes:
         pp_cond.append("MES_NUM = %s"); pp_params.append(mes)
     if region:
         pp_cond.append("REGION = %s"); pp_params.append(region)
@@ -140,7 +147,7 @@ def get_vendedores(
         df_ppv  = connector.query(sql_pp_val, pp_params)
         df_ppc  = connector.query(sql_pp_can, pp_params)
         df_dim  = connector.query(sql_dim)
-        df_mom  = connector.query(sql_mom, p_mom) if mes else None
+        df_mom  = connector.query(sql_mom, p_mom) if sql_mom else None
     except Exception as exc:
         logger.error("Vendedores error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc))

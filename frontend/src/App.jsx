@@ -7,13 +7,14 @@ import { VendedoresView } from './pages/VendedoresView'
 import { ProductosView }  from './pages/ProductosView'
 import { ClientesView }   from './pages/ClientesView'
 import { AlertasView }    from './pages/AlertasView'
-import { AtributosView }  from './pages/AtributosView'
-import { HallazgosView }  from './pages/HallazgosView'
-import { AgenteView }     from './pages/AgenteView'
+import { HallazgosView }     from './pages/HallazgosView'
+import { OportunidadesView } from './pages/OportunidadesView'
+import { AgenteView }        from './pages/AgenteView'
 import { DimensionesView }   from './pages/DimensionesView'
 import { MercadosView }      from './pages/MercadosView'
 import { PresupuestoView }   from './pages/PresupuestoView'
-import { DiccionarioView }  from './pages/DiccionarioView'
+import { DiccionarioView }       from './pages/DiccionarioView'
+import { NotificacionesView }    from './pages/NotificacionesView'
 
 export default function App() {
   return (
@@ -26,13 +27,14 @@ export default function App() {
         <Route path="productos"   element={<ProductosView />}  />
         <Route path="clientes"    element={<ClientesView />}   />
         <Route path="alertas"     element={<AlertasView />}    />
-        <Route path="atributos"   element={<AtributosView />}  />
-        <Route path="hallazgos"   element={<HallazgosView />}  />
-        <Route path="agente"      element={<AgenteView />}     />
+        <Route path="hallazgos"     element={<HallazgosView />}     />
+        <Route path="oportunidades" element={<OportunidadesView />} />
+        <Route path="agente"        element={<AgenteView />}        />
         <Route path="dimensiones"  element={<DimensionesView />}  />
         <Route path="mercados"     element={<MercadosView />}     />
         <Route path="presupuesto"  element={<PresupuestoView />}  />
-        <Route path="diccionario"  element={<DiccionarioView />}  />
+        <Route path="diccionario"     element={<DiccionarioView />}     />
+        <Route path="notificaciones"  element={<NotificacionesView />}  />
       </Route>
     </Routes>
   )
