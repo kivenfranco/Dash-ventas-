@@ -1,4 +1,5 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 const FilterContext = createContext(null)
 
@@ -18,12 +19,55 @@ const DEFAULT_FILTERS = {
 
 const DEFAULT_COMP = { ano: new Date().getFullYear() - 1, mes: null, mes_fin: null, activo: false }
 
-export function FilterProvider({ children }) {
-  const [filters, setFilters]   = useState(DEFAULT_FILTERS)
-  const [compPeriod, setCompPeriod] = useState(DEFAULT_COMP)
+// Keys we sync to the URL
+const URL_SYNC_KEYS = ['ano', 'mes', 'mes_fin', 'region', 'vendedor', 'grupo_comercial', 'planta', 'mercado']
 
-  const update     = (partial) => setFilters((prev) => ({ ...prev, ...partial }))
-  const reset      = () => setFilters(DEFAULT_FILTERS)
+function parseUrlFilters(searchParams) {
+  const f = { ...DEFAULT_FILTERS }
+  for (const key of URL_SYNC_KEYS) {
+    const val = searchParams.get(key)
+    if (val == null) continue
+    if (['ano', 'mes', 'mes_fin'].includes(key)) {
+      f[key] = val ? parseInt(val, 10) || null : null
+    } else {
+      f[key] = val
+    }
+  }
+  return f
+}
+
+export function FilterProvider({ children }) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [filters, setFilters]           = useState(() => parseUrlFilters(searchParams))
+  const [compPeriod, setCompPeriod]     = useState(DEFAULT_COMP)
+
+  const update = useCallback((partial) => {
+    setFilters((prev) => {
+      const next = { ...prev, ...partial }
+      // Sync URL-tracked keys
+      setSearchParams(
+        (params) => {
+          const p = new URLSearchParams(params)
+          for (const key of URL_SYNC_KEYS) {
+            if (key in partial) {
+              const v = partial[key]
+              if (v != null && v !== '' && v !== false) p.set(key, String(v))
+              else p.delete(key)
+            }
+          }
+          return p
+        },
+        { replace: true },
+      )
+      return next
+    })
+  }, [setSearchParams])
+
+  const reset = useCallback(() => {
+    setFilters(DEFAULT_FILTERS)
+    setSearchParams({}, { replace: true })
+  }, [setSearchParams])
+
   const updateComp = (partial) => setCompPeriod((prev) => ({ ...prev, ...partial }))
   const resetComp  = () => setCompPeriod(DEFAULT_COMP)
 

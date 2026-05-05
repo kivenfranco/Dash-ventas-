@@ -1,42 +1,169 @@
-import { useState } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { useState, useRef, useEffect } from 'react'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { FilterProvider } from '../../context/FilterContext'
 import { GlobalFilters } from '../filters/GlobalFilters'
+import { useAuth } from '../../context/AuthContext'
+import { api } from '../../services/api'
+import logoAlico from '../../assets/logo.png'
 import {
   LayoutDashboard, TrendingUp, MapPin, Users2,
   Package, Users, BellRing, RefreshCw, Activity,
   Lightbulb, BotMessageSquare, LayoutGrid, Globe, Target, BookOpen, Rocket, Mail, LineChart, Ruler,
   Heart, Trophy, Zap, GitBranch, ShoppingCart, Sliders, FileText,
+  Search, LogOut, UserCircle, ChevronDown, BarChart2, GitMerge, UserX, PieChart,
 } from 'lucide-react'
-import { api } from '../../services/api'
-import logoAlico from '../../assets/logo.png'
 
 const TABS = [
-  { to: '/',           label: 'Resumen',    icon: LayoutDashboard },
-  { to: '/tendencia',  label: 'Tendencia',  icon: TrendingUp      },
-  { to: '/regiones',   label: 'Regiones',   icon: MapPin          },
-  { to: '/vendedores', label: 'Vendedores', icon: Users2          },
-  { to: '/productos',  label: 'Productos',  icon: Package         },
-  { to: '/clientes',   label: 'Clientes',   icon: Users           },
-  { to: '/alertas',    label: 'Alertas',    icon: BellRing        },
-  { to: '/pronosticos',   label: 'Pronósticos',   icon: LineChart  },
-  { to: '/mercados',   label: 'Mercados',   icon: Globe           },
-  { to: '/hallazgos',     label: 'Hallazgos',     icon: Lightbulb       },
-  { to: '/oportunidades', label: 'Oportunidades', icon: Rocket          },
-  { to: '/agente',        label: 'Agente BI',     icon: BotMessageSquare },
-  { to: '/dimensiones',  label: 'Dimensiones',  icon: LayoutGrid },
-  { to: '/presupuesto',  label: 'Presupuesto',  icon: Target     },
-  { to: '/diccionario',    label: 'Diccionario',    icon: BookOpen },
-  { to: '/notificaciones',   label: 'Notificaciones',   icon: Mail         },
-  { to: '/comercializacion', label: 'Comercialización', icon: Ruler        },
-  { to: '/score-salud',      label: 'Score Salud',      icon: Heart        },
-  { to: '/ranking',          label: 'Ranking',          icon: Trophy       },
-  { to: '/anomalias',        label: 'Anomalías',        icon: Zap          },
-  { to: '/cohort',           label: 'Cohortes',         icon: GitBranch    },
-  { to: '/canasta',          label: 'Canasta',          icon: ShoppingCart },
-  { to: '/simulador',        label: 'Simulador',        icon: Sliders      },
-  { to: '/reporte',          label: 'Reporte PDF',      icon: FileText     },
+  { to: '/',                label: 'Resumen',         icon: LayoutDashboard },
+  { to: '/tendencia',       label: 'Tendencia',        icon: TrendingUp      },
+  { to: '/regiones',        label: 'Regiones',         icon: MapPin          },
+  { to: '/vendedores',      label: 'Vendedores',       icon: Users2          },
+  { to: '/productos',       label: 'Productos',        icon: Package         },
+  { to: '/clientes',        label: 'Clientes',         icon: Users           },
+  { to: '/alertas',         label: 'Alertas',          icon: BellRing        },
+  { to: '/pronosticos',     label: 'Pronósticos',      icon: LineChart       },
+  { to: '/mercados',        label: 'Mercados',         icon: Globe           },
+  { to: '/hallazgos',       label: 'Hallazgos',        icon: Lightbulb       },
+  { to: '/oportunidades',   label: 'Oportunidades',    icon: Rocket          },
+  { to: '/agente',          label: 'Agente BI',        icon: BotMessageSquare },
+  { to: '/dimensiones',     label: 'Dimensiones',      icon: LayoutGrid      },
+  { to: '/presupuesto',     label: 'Presupuesto',      icon: Target          },
+  { to: '/diccionario',     label: 'Diccionario',      icon: BookOpen        },
+  { to: '/notificaciones',  label: 'Notificaciones',   icon: Mail            },
+  { to: '/comercializacion',label: 'Comercialización', icon: Ruler           },
+  { to: '/score-salud',     label: 'Score Salud',      icon: Heart           },
+  { to: '/ranking',         label: 'Ranking',          icon: Trophy          },
+  { to: '/anomalias',       label: 'Anomalías',        icon: Zap             },
+  { to: '/cohort',          label: 'Cohortes',         icon: GitBranch       },
+  { to: '/canasta',         label: 'Canasta',          icon: ShoppingCart    },
+  { to: '/simulador',       label: 'Simulador',        icon: Sliders         },
+  { to: '/reporte',         label: 'Reporte PDF',      icon: FileText        },
+  { to: '/rfm',             label: 'RFM',              icon: PieChart        },
+  { to: '/abcxyz',          label: 'ABC/XYZ',          icon: BarChart2       },
+  { to: '/clv',             label: 'CLV',              icon: Activity        },
+  { to: '/cross-selling',   label: 'Cross-Selling',    icon: GitMerge        },
+  { to: '/churn',           label: 'Churn',            icon: UserX           },
 ]
+
+function SearchBar() {
+  const navigate                     = useNavigate()
+  const [query, setQuery]            = useState('')
+  const [results, setResults]        = useState([])
+  const [open, setOpen]              = useState(false)
+  const [loading, setLoading]        = useState(false)
+  const ref                          = useRef(null)
+  const timerRef                     = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleChange = (e) => {
+    const val = e.target.value
+    setQuery(val)
+    clearTimeout(timerRef.current)
+    if (val.length < 2) { setResults([]); setOpen(false); return }
+    timerRef.current = setTimeout(async () => {
+      setLoading(true)
+      try {
+        const data = await api.search(val)
+        setResults(data.results || [])
+        setOpen(true)
+      } catch (_) {}
+      finally { setLoading(false) }
+    }, 300)
+  }
+
+  const select = (r) => {
+    setOpen(false)
+    setQuery('')
+    if (r.tipo === 'vendedor')    navigate(`/vendedores?vendedor=${r.id}`)
+    else if (r.tipo === 'producto') navigate(`/productos`)
+    else if (r.tipo === 'estructura') navigate(`/productos`)
+  }
+
+  const tipoColor = { vendedor: 'text-brand-400', producto: 'text-emerald-400', estructura: 'text-amber-400' }
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="flex items-center gap-2 bg-surface-800 border border-surface-600 rounded-lg px-3 py-1.5 w-56 focus-within:border-brand-500">
+        <Search size={13} className="text-slate-500 shrink-0" />
+        <input
+          value={query}
+          onChange={handleChange}
+          placeholder="Buscar…"
+          className="bg-transparent text-xs text-slate-200 placeholder-slate-500 outline-none w-full"
+        />
+        {loading && <div className="h-3 w-3 border border-slate-500 border-t-transparent rounded-full animate-spin shrink-0" />}
+      </div>
+      {open && results.length > 0 && (
+        <div className="absolute top-full mt-1 left-0 w-72 bg-surface-800 border border-surface-600 rounded-xl shadow-2xl z-50 overflow-hidden">
+          {results.map((r, i) => (
+            <button
+              key={i}
+              onClick={() => select(r)}
+              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-surface-700 text-left"
+            >
+              <span className={`text-xs font-medium ${tipoColor[r.tipo] || 'text-slate-400'} w-20 shrink-0`}>
+                {r.tipo}
+              </span>
+              <span className="text-xs text-slate-200 truncate">{r.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UserMenu() {
+  const { user, logout } = useAuth()
+  const navigate         = useNavigate()
+  const [open, setOpen]  = useState(false)
+  const ref              = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleLogout = () => { logout(); navigate('/login', { replace: true }) }
+
+  if (!user) return null
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 text-xs text-slate-300 hover:text-slate-100 px-2 py-1.5 rounded-lg hover:bg-surface-700 transition-colors"
+      >
+        <UserCircle size={16} className="text-brand-400" />
+        <span className="max-w-[100px] truncate">{user.nombre}</span>
+        <ChevronDown size={12} className="text-slate-500" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-44 bg-surface-800 border border-surface-600 rounded-xl shadow-2xl z-50 overflow-hidden">
+          <div className="px-3 py-2 border-b border-surface-700">
+            <p className="text-xs font-medium text-slate-200 truncate">{user.nombre}</p>
+            <p className="text-xs text-slate-500 truncate">{user.email}</p>
+            <span className={`text-xs px-1.5 py-0.5 rounded mt-1 inline-block ${user.rol === 'admin' ? 'bg-brand-600/30 text-brand-300' : 'bg-surface-700 text-slate-400'}`}>
+              {user.rol}
+            </span>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+          >
+            <LogOut size={13} />
+            Cerrar sesión
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function TabBar({ onRefresh, refreshing }) {
   const location = useLocation()
@@ -50,6 +177,7 @@ function TabBar({ onRefresh, refreshing }) {
           <span className="text-slate-600 text-xs">ALICO SAS BIC</span>
         </div>
         <div className="flex items-center gap-3">
+          <SearchBar />
           <span className="text-xs text-slate-500">{new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
           <button
             onClick={onRefresh}
@@ -58,6 +186,7 @@ function TabBar({ onRefresh, refreshing }) {
             <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
             Actualizar
           </button>
+          <UserMenu />
         </div>
       </div>
       {/* Tabs row */}

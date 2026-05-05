@@ -39,6 +39,8 @@ def get_score(
     mes: Optional[int] = Query(None, ge=1, le=12),
     top_n: int = Query(100, ge=10, le=500),
     excl_pvta: bool = Query(True),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
 ):
     cfg = get_settings()
     key = f"score:{ano}:{mes}:{top_n}:{excl_pvta}"
@@ -137,6 +139,12 @@ def get_score(
             "score_tendencia": round(float(r["score_tendencia"]), 1),
         })
 
-    result = _sanitize({"ano": ano, "mes": mes, "data": records})
+    total = len(records)
+    page  = records[offset: offset + limit]
+    result = _sanitize({
+        "ano": ano, "mes": mes,
+        "total": total, "limit": limit, "offset": offset,
+        "data": page,
+    })
     cache.set(key, result)
     return result

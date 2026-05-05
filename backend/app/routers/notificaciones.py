@@ -189,10 +189,69 @@ def get_config():
     """Devuelve configuración SMTP (sin password) y estado del sistema."""
     cfg = get_settings()
     return {
-        "smtp_host":      cfg.SMTP_HOST,
-        "smtp_port":      cfg.SMTP_PORT,
-        "smtp_user":      cfg.SMTP_USER,
-        "smtp_from_name": cfg.SMTP_FROM_NAME,
-        "alertas_enabled": cfg.ALERTAS_ENABLED,
-        "smtp_configurado": bool(cfg.SMTP_USER and cfg.SMTP_PASSWORD),
+        "smtp_host":          cfg.SMTP_HOST,
+        "smtp_port":          cfg.SMTP_PORT,
+        "smtp_user":          cfg.SMTP_USER,
+        "smtp_from_name":     cfg.SMTP_FROM_NAME,
+        "alertas_enabled":    cfg.ALERTAS_ENABLED,
+        "smtp_configurado":   bool(cfg.SMTP_USER and cfg.SMTP_PASSWORD),
+        "teams_configurado":  bool(cfg.TEAMS_WEBHOOK_URL),
+        "whatsapp_configurado": bool(cfg.WHATSAPP_TOKEN and cfg.WHATSAPP_PHONE_ID),
     }
+
+
+class TeamsTestBody(BaseModel):
+    mensaje: Optional[str] = None
+
+
+class WhatsAppTestBody(BaseModel):
+    numero: str
+    mensaje: Optional[str] = None
+
+
+@router.post("/teams-test")
+async def enviar_teams_test(body: TeamsTestBody):
+    """Envía un mensaje de prueba al webhook de Teams."""
+    import httpx
+    cfg = get_settings()
+    if not cfg.TEAMS_WEBHOOK_URL:
+        raise HTTPException(status_code=400, detail="TEAMS_WEBHOOK_URL no configurado.")
+    payload = {
+        "@type": "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "summary": "BI Ventas — Prueba",
+        "themeColor": "0076D7",
+        "title": "BI Ventas · Prueba de notificación",
+        "text": body.mensaje or "✅ Conexión con Microsoft Teams funcionando correctamente.",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(cfg.TEAMS_WEBHOOK_URL, json=payload)
+            resp.raise_for_status()
+        return {"status": "ok", "mensaje": "Mensaje enviado a Teams."}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Error al enviar a Teams: {exc}")
+
+
+@router.post("/whatsapp-test")
+async def enviar_whatsapp_test(body: WhatsAppTestBody):
+    """Envía un mensaje de prueba vía WhatsApp Business API."""
+    import httpx
+    cfg = get_settings()
+    if not cfg.WHATSAPP_TOKEN or not cfg.WHATSAPP_PHONE_ID:
+        raise HTTPException(status_code=400, detail="WHATSAPP_TOKEN / WHATSAPP_PHONE_ID no configurados.")
+    url = f"https://graph.facebook.com/v19.0/{cfg.WHATSAPP_PHONE_ID}/messages"
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": body.numero,
+        "type": "text",
+        "text": {"body": body.mensaje or "✅ BI Ventas — prueba de WhatsApp."},
+    }
+    headers = {"Authorization": f"Bearer {cfg.WHATSAPP_TOKEN}", "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+        return {"status": "ok", "mensaje": f"Mensaje enviado a {body.numero}."}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Error al enviar WhatsApp: {exc}")

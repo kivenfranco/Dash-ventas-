@@ -53,6 +53,8 @@ def get_ranking(
     mes: Optional[int] = Query(None, ge=1, le=12),
     group_by: str = Query("descripcion", pattern=_VALID_GROUPS),
     top_n: int = Query(30, ge=5, le=100),
+    limit: int = Query(30, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ):
     cfg = get_settings()
     today = date.today()
@@ -114,10 +116,15 @@ def get_ranking(
             "variacion_pct": r["variacion_pct"],
         })
 
+    total = len(records)
+    page  = records[offset: offset + limit]
+
     result = {
         "ano": ano_actual, "mes": mes_actual,
         "mes_anterior": mes_ant, "ano_anterior": ano_ant,
-        "group_by": group_by, "data": records,
+        "group_by": group_by,
+        "total": total, "limit": limit, "offset": offset,
+        "data": page,
     }
     cache.set(key, result)
     return result

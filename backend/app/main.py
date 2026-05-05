@@ -4,9 +4,18 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .auth import auth_middleware, setup_default_admin
 from .config import get_settings
 from .logger import setup_logging
-from .routers import kpis, trends, segments, detail, schema_router, filters, vendedores, alertas, atributos, hallazgos, agente, ventas_diarias, presupuesto, clientes, oportunidades, notificaciones, pronosticos, comercializacion, score_salud, ranking, anomalias_auto, cohort, canasta, factores_com
+from .routers import (
+    kpis, trends, segments, detail, schema_router, filters, vendedores,
+    alertas, atributos, hallazgos, agente, ventas_diarias, presupuesto,
+    clientes, oportunidades, notificaciones, pronosticos, comercializacion,
+    score_salud, ranking, anomalias_auto, cohort, canasta, factores_com,
+)
+from .routers import (
+    auth_router, rfm, abcxyz, clv, cross_selling, churn, search,
+)
 from .scheduler.jobs import start_scheduler, stop_scheduler, trigger_manual_refresh
 from .database.cache import cache
 from .database.snowflake_connector import connector
@@ -19,6 +28,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("BI Ventas API starting up…")
+    setup_default_admin()
     start_scheduler()
     yield
     stop_scheduler()
@@ -28,10 +38,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="BI Ventas API",
     description="Business Intelligence — Snowflake star schema + FastAPI",
-    version="2.0.0",
+    version="3.0.0",
     lifespan=lifespan,
 )
 
+# CORS must be registered before auth middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cfg.cors_origins_list,
@@ -40,6 +51,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Auth middleware — validates Bearer token on all non-public routes
+app.middleware("http")(auth_middleware)
+
+# ── Routers ───────────────────────────────────────────────────────────────────
+app.include_router(auth_router.router)
 app.include_router(kpis.router)
 app.include_router(trends.router)
 app.include_router(segments.router)
@@ -63,17 +79,23 @@ app.include_router(anomalias_auto.router)
 app.include_router(cohort.router)
 app.include_router(canasta.router)
 app.include_router(factores_com.router)
+app.include_router(rfm.router)
+app.include_router(abcxyz.router)
+app.include_router(clv.router)
+app.include_router(cross_selling.router)
+app.include_router(churn.router)
+app.include_router(search.router)
 app.include_router(schema_router.router)
 
 
 @app.get("/api/health", tags=["System"])
 def health():
     return {
-        "status": "ok",
+        "status":   "ok",
         "snowflake": connector.test(),
-        "cache": cache.stats(),
+        "cache":    cache.stats(),
         "database": cfg.SNOWFLAKE_DATABASE,
-        "schema": cfg.SNOWFLAKE_SCHEMA,
+        "schema":   cfg.SNOWFLAKE_SCHEMA,
     }
 
 
