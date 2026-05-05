@@ -16,14 +16,19 @@ const DEFAULT_FILTERS = {
   excl_pvta: false,
 }
 
-export function FilterProvider({ children }) {
-  const [filters, setFilters] = useState(DEFAULT_FILTERS)
+const DEFAULT_COMP = { ano: new Date().getFullYear() - 1, mes: null, mes_fin: null, activo: false }
 
-  const update = (partial) => setFilters((prev) => ({ ...prev, ...partial }))
-  const reset  = () => setFilters(DEFAULT_FILTERS)
+export function FilterProvider({ children }) {
+  const [filters, setFilters]   = useState(DEFAULT_FILTERS)
+  const [compPeriod, setCompPeriod] = useState(DEFAULT_COMP)
+
+  const update     = (partial) => setFilters((prev) => ({ ...prev, ...partial }))
+  const reset      = () => setFilters(DEFAULT_FILTERS)
+  const updateComp = (partial) => setCompPeriod((prev) => ({ ...prev, ...partial }))
+  const resetComp  = () => setCompPeriod(DEFAULT_COMP)
 
   return (
-    <FilterContext.Provider value={{ filters, update, reset }}>
+    <FilterContext.Provider value={{ filters, update, reset, compPeriod, updateComp, resetComp }}>
       {children}
     </FilterContext.Provider>
   )

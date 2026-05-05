@@ -15,6 +15,15 @@ import { MercadosView }      from './pages/MercadosView'
 import { PresupuestoView }   from './pages/PresupuestoView'
 import { DiccionarioView }       from './pages/DiccionarioView'
 import { NotificacionesView }    from './pages/NotificacionesView'
+import { PronosticosView }       from './pages/PronosticosView'
+import { ComercializacionView }  from './pages/ComercializacionView'
+import { ScoreSaludView }        from './pages/ScoreSaludView'
+import { RankingView }           from './pages/RankingView'
+import { AnomalíasView }         from './pages/AnomalíasView'
+import { CohortView }            from './pages/CohortView'
+import { CanastaView }           from './pages/CanastaView'
+import { SimuladorView }         from './pages/SimuladorView'
+import { ReporteView }           from './pages/ReporteView'
 
 export default function App() {
   return (
@@ -35,6 +44,15 @@ export default function App() {
         <Route path="presupuesto"  element={<PresupuestoView />}  />
         <Route path="diccionario"     element={<DiccionarioView />}     />
         <Route path="notificaciones"  element={<NotificacionesView />}  />
+        <Route path="pronosticos"        element={<PronosticosView />}        />
+        <Route path="comercializacion"   element={<ComercializacionView />}   />
+        <Route path="score-salud"        element={<ScoreSaludView />}         />
+        <Route path="ranking"            element={<RankingView />}            />
+        <Route path="anomalias"          element={<AnomalíasView />}          />
+        <Route path="cohort"             element={<CohortView />}             />
+        <Route path="canasta"            element={<CanastaView />}            />
+        <Route path="simulador"          element={<SimuladorView />}          />
+        <Route path="reporte"            element={<ReporteView />}            />
       </Route>
     </Routes>
   )

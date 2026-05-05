@@ -1,12 +1,13 @@
 """
-POST /api/agente — Agente conversacional BI via Google Gemini.
+POST /api/agente — Agente conversacional BI via Claude (Anthropic).
 Recibe preguntas en lenguaje natural, genera SQL y responde con datos de Snowflake.
 """
 import json
 import logging
+import math
 from typing import Optional
 
-import httpx
+import anthropic
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -16,9 +17,9 @@ from ..database.snowflake_connector import connector
 router = APIRouter(prefix="/api/agente", tags=["Agente"])
 logger = logging.getLogger(__name__)
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+MODEL = "claude-haiku-4-5-20251001"
 
-SCHEMA_CONTEXT = """Eres un asistente de Business Intelligence para ALICO S.A., empresa industrial colombiana.
+SCHEMA_CONTEXT = """Eres un asistente de Business Intelligence para ALICO SAS BIC, empresa industrial colombiana.
 Analizas datos de ventas en Snowflake y respondes preguntas en español, de forma clara y directa.
 
 ## Esquema (base de datos: GOLD)
@@ -76,26 +77,22 @@ Responde SIEMPRE en español. Sé conciso y útil."""
 
 TOOLS = [
     {
-        "function_declarations": [
-            {
-                "name": "ejecutar_sql",
-                "description": "Ejecuta SQL en Snowflake para obtener datos de ventas, clientes, productos, vendedores, regiones y presupuestos.",
-                "parameters": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "sql": {
-                            "type": "STRING",
-                            "description": "Consulta SQL válida para Snowflake GOLD database",
-                        },
-                        "descripcion": {
-                            "type": "STRING",
-                            "description": "Qué busca esta consulta (1 línea)",
-                        },
-                    },
-                    "required": ["sql", "descripcion"],
+        "name": "ejecutar_sql",
+        "description": "Ejecuta SQL en Snowflake para obtener datos de ventas, clientes, productos, vendedores, regiones y presupuestos.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sql": {
+                    "type": "string",
+                    "description": "Consulta SQL válida para Snowflake GOLD database",
                 },
-            }
-        ]
+                "descripcion": {
+                    "type": "string",
+                    "description": "Qué busca esta consulta (1 línea)",
+                },
+            },
+            "required": ["sql", "descripcion"],
+        },
     }
 ]
 
@@ -105,29 +102,6 @@ class MensajeIn(BaseModel):
     historial: list[dict] = []
     ano: Optional[int] = None
     mes: Optional[int] = None
-
-
-async def _call_gemini(contents: list[dict], api_key: str, max_tokens: int = 2048) -> dict:
-    async with httpx.AsyncClient(timeout=90.0) as client:
-        resp = await client.post(
-            f"{GEMINI_URL}?key={api_key}",
-            json={
-                "system_instruction": {"parts": [{"text": SCHEMA_CONTEXT}]},
-                "contents": contents,
-                "tools": TOOLS,
-                "tool_config": {"function_calling_config": {"mode": "AUTO"}},
-                "generation_config": {"max_output_tokens": max_tokens},
-            },
-        )
-        if resp.status_code != 200:
-            logger.error("Gemini error %s: %s", resp.status_code, resp.text[:500])
-            if resp.status_code == 429:
-                raise HTTPException(
-                    status_code=429,
-                    detail="Cuota de la API de IA agotada. Espera unos minutos e intenta de nuevo.",
-                )
-            raise HTTPException(status_code=502, detail=f"Error API IA: {resp.text[:300]}")
-        return resp.json()
 
 
 def _execute_sql(sql: str) -> dict:
@@ -141,7 +115,6 @@ def _execute_sql(sql: str) -> dict:
             cleaned = []
             for v in row:
                 try:
-                    import math
                     if isinstance(v, float) and math.isnan(v):
                         cleaned.append(None)
                     else:
@@ -160,22 +133,11 @@ def _execute_sql(sql: str) -> dict:
         return {"columns": [], "rows": [], "total_rows": 0, "error": str(exc)}
 
 
-def _extract_text(parts: list) -> str:
-    return " ".join(p.get("text", "") for p in parts if "text" in p).strip()
-
-
-def _extract_fn_call(parts: list) -> Optional[dict]:
-    for p in parts:
-        if "functionCall" in p:
-            return p["functionCall"]
-    return None
-
-
 @router.post("")
 async def consultar_agente(body: MensajeIn):
     cfg = get_settings()
-    if not cfg.GOOGLE_AI_KEY:
-        raise HTTPException(status_code=503, detail="GOOGLE_AI_KEY no configurada en .env")
+    if not cfg.ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY no configurada en .env")
 
     pregunta = body.pregunta
     if body.ano:
@@ -184,69 +146,96 @@ async def consultar_agente(body: MensajeIn):
             pregunta += f", mes {body.mes}"
         pregunta += "]"
 
-    # Build contents from history + current question
-    contents: list[dict] = []
+    messages: list[dict] = []
     for h in body.historial:
         role = h.get("role", "user")
-        # Map assistant → model for Gemini
-        gemini_role = "model" if role == "assistant" else "user"
-        contents.append({"role": gemini_role, "parts": [{"text": h.get("content", "")}]})
-    contents.append({"role": "user", "parts": [{"text": pregunta}]})
+        # Normalize: frontend may send "model" (Gemini legacy) → "assistant"
+        if role == "model":
+            role = "assistant"
+        messages.append({"role": role, "content": h.get("content", "")})
+    messages.append({"role": "user", "content": pregunta})
+
+    client = anthropic.AsyncAnthropic(api_key=cfg.ANTHROPIC_API_KEY)
 
     sql_ejecutado = None
     sql_descripcion = None
     result_data = None
 
-    response = await _call_gemini(contents, cfg.GOOGLE_AI_KEY)
+    try:
+        response = await client.messages.create(
+            model=MODEL,
+            max_tokens=2048,
+            system=SCHEMA_CONTEXT,
+            messages=messages,
+            tools=TOOLS,
+        )
+    except anthropic.APIStatusError as exc:
+        logger.error("Claude API error %s: %s", exc.status_code, exc.message)
+        if exc.status_code == 529:
+            raise HTTPException(status_code=429, detail="API de IA sobrecargada. Intenta en un momento.")
+        raise HTTPException(status_code=502, detail=f"Error API IA: {exc.message[:300]}")
 
-    candidates = response.get("candidates", [])
-    if not candidates:
-        raise HTTPException(status_code=502, detail="Gemini no retornó candidatos")
+    # Handle tool use
+    if response.stop_reason == "tool_use":
+        tool_block = next((b for b in response.content if b.type == "tool_use"), None)
 
-    candidate = candidates[0]
-    resp_parts = candidate.get("content", {}).get("parts", [])
-    fn_call = _extract_fn_call(resp_parts)
+        if tool_block:
+            sql_ejecutado = tool_block.input.get("sql", "")
+            sql_descripcion = tool_block.input.get("descripcion", "")
+            result_data = _execute_sql(sql_ejecutado)
 
-    if fn_call:
-        sql_ejecutado = fn_call.get("args", {}).get("sql", "")
-        sql_descripcion = fn_call.get("args", {}).get("descripcion", "")
-        result_data = _execute_sql(sql_ejecutado)
+            if result_data["error"]:
+                tool_result_content = json.dumps({"error": result_data["error"]})
+            else:
+                tool_result_content = json.dumps({
+                    "columnas": result_data["columns"],
+                    "filas": result_data["rows"][:20],
+                    "total_filas": result_data["total_rows"],
+                })
 
-        if result_data["error"]:
-            fn_response_content = {"error": result_data["error"]}
-        else:
-            fn_response_content = {
-                "columnas": result_data["columns"],
-                "filas": result_data["rows"][:20],
-                "total_filas": result_data["total_rows"],
-            }
+            # Append assistant turn (with tool_use block) and tool result
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": tool_block.id,
+                    "content": tool_result_content,
+                }],
+            })
 
-        # Add model's function call turn
-        contents.append({"role": "model", "parts": [{"functionCall": {"name": fn_call["name"], "args": fn_call.get("args", {})}}]})
-        # Add function response turn
-        contents.append({
-            "role": "user",
-            "parts": [{
-                "functionResponse": {
-                    "name": fn_call["name"],
-                    "response": fn_response_content,
-                }
-            }],
-        })
+            try:
+                response = await client.messages.create(
+                    model=MODEL,
+                    max_tokens=1024,
+                    system=SCHEMA_CONTEXT,
+                    messages=messages,
+                    tools=TOOLS,
+                )
+            except anthropic.APIStatusError as exc:
+                logger.error("Claude API error (2nd call) %s: %s", exc.status_code, exc.message)
+                raise HTTPException(status_code=502, detail=f"Error API IA: {exc.message[:300]}")
 
-        response = await _call_gemini(contents, cfg.GOOGLE_AI_KEY, max_tokens=1024)
-        candidates = response.get("candidates", [])
-        if candidates:
-            resp_parts = candidates[0].get("content", {}).get("parts", [])
+    answer = ""
+    for block in response.content:
+        if hasattr(block, "text"):
+            answer += block.text
+    answer = answer.strip()
 
-    answer = _extract_text(resp_parts)
     if not answer:
         answer = "No pude generar una respuesta. Intenta reformular la pregunta."
+
+    usage = None
+    if response.usage:
+        usage = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+        }
 
     return {
         "respuesta": answer,
         "sql": sql_ejecutado,
         "sql_descripcion": sql_descripcion,
         "datos": result_data,
-        "uso": response.get("usageMetadata"),
+        "uso": usage,
     }

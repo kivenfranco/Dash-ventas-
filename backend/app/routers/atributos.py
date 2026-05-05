@@ -15,16 +15,17 @@ from ..database.snowflake_connector import connector
 router = APIRouter(prefix="/api/atributos", tags=["Atributos"])
 logger = logging.getLogger(__name__)
 
-_VALID_GROUPS = "^(es_stock|estructura|dispositivo|tipo_producto|tipo_fabricacion|descripcion_parte)$"
+_VALID_GROUPS = "^(es_stock|estructura|dispositivo|tipo_producto|tipo_fabricacion|descripcion_parte|linea_negocio)$"
 
 _DIM_MAP = {
     # (sql_expr, dim_source, filter_nulls)
-    "es_stock":         ("CASE WHEN dp.ES_STOCK THEN 'Stock' ELSE 'No Stock' END",    "parte",  False),
-    "estructura":       ("COALESCE(dp.ESTRUCTURA,    'Sin Clasificar')",               "parte",  False),
-    "dispositivo":      ("COALESCE(dp.DISPOSITIVO,   'Sin Clasificar')",               "parte",  False),
-    "tipo_producto":    ("COALESCE(dp.TIPO_PRODUCTO, 'Sin Clasificar')",               "parte",  False),
-    "tipo_fabricacion": ("dgc.TIPO_FABRICACION",                                       "grupo",  True),
-    "descripcion_parte":("dp.DESCRIPCION",                                             "parte",  True),
+    "es_stock":         ("CASE WHEN dp.ES_STOCK THEN 'Stock' ELSE 'No Stock' END",    "parte",       False),
+    "estructura":       ("COALESCE(dp.ESTRUCTURA,    'Sin Clasificar')",               "parte",       False),
+    "dispositivo":      ("COALESCE(dp.DISPOSITIVO,   'Sin Clasificar')",               "parte",       False),
+    "tipo_producto":    ("COALESCE(dp.TIPO_PRODUCTO, 'Sin Clasificar')",               "parte",       False),
+    "tipo_fabricacion": ("dgc.TIPO_FABRICACION",                                       "grupo",       True),
+    "descripcion_parte":("dp.DESCRIPCION",                                             "parte",       True),
+    "linea_negocio":    ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",              "grupo_prod",  False),
 }
 
 
@@ -37,9 +38,11 @@ def _build_sql(cfg, group_by, ano, mes, region, vendedor, planta, grupo_comercia
         dp_sub = (
             f"(SELECT CODIGO_PRODUCTO, ES_STOCK, ESTRUCTURA, TIPO_PRODUCTO, DISPOSITIVO, DESCRIPCION "
             f"FROM {cfg.TM('DIM_PARTE')} "
-            f"QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY CODIGO_PRODUCTO) = 1)"
+            f"QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY ESTRUCTURA NULLS LAST, TIPO_PRODUCTO NULLS LAST, CODIGO_PRODUCTO) = 1)"
         )
         joins.append(f"LEFT JOIN {dp_sub} dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO")
+    if dim_src == "grupo_prod":
+        joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO")
     if dim_src == "grupo":
         joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO")
         joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO")

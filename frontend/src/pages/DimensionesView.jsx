@@ -1,9 +1,10 @@
 import { useOutletContext } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useFilters } from '../context/FilterContext'
 import { useData } from '../hooks/useData'
 import { api } from '../services/api'
 import { fmtCOP, fmtPct, pctColor, cumpColor, cumpBg, MONTH_NAMES, formatPeriod } from '../utils/format'
+import { X } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, Legend,
@@ -15,11 +16,18 @@ const C_PP  = '#F8A62B'
 const C_ANT = '#1f2937'
 
 const PANELS = [
-  { id: 'organico',      label: 'Tipo de Venta',     src: 'seg', top: 10 },
-  { id: 'es_stock',      label: 'Stock vs No Stock', src: 'atr', top: 20 },
-  { id: 'estructura',    label: 'Estructura',        src: 'atr', top: 20 },
-  { id: 'tipo_producto', label: 'Tipo Producto',     src: 'atr', top: 20 },
+  { id: 'organico',       label: 'Tipo de Venta',      src: 'seg', top: 10 },
+  { id: 'es_stock',       label: 'Stock vs No Stock',  src: 'atr', top: 20 },
+  { id: 'linea_negocio',  label: 'Línea de Negocio',   src: 'atr', top: 20 },
+  { id: 'estructura',     label: 'Estructura',         src: 'atr', top: 50 },
+  { id: 'tipo_producto',  label: 'Tipo Producto',      src: 'atr', top: 50 },
 ]
+
+// Map dimension id → API filter key used for drill-down cross-panel
+const DRILL_FILTER_MAP = {
+  linea_negocio: 'planta',
+  estructura:    'estructura',
+}
 
 function TTip({ active, payload, label }) {
   if (!active || !payload?.length) return null
@@ -48,12 +56,20 @@ function CumpBar({ value }) {
   )
 }
 
-export function DimPanel({ panelId, label, src, top, filters, refreshKey }) {
-  const fetcher = src === 'seg'
-    ? () => api.segments(filters, panelId, top)
-    : () => api.atributos(filters, panelId, top)
+export function DimPanel({ panelId, label, src, top, filters, refreshKey, drill, onDrill }) {
+  // Merge global filters with active drill (cross-panel filter)
+  const effectiveFilters = drill && drill.panelId !== panelId
+    ? { ...filters, [drill.filterKey]: drill.value }
+    : filters
 
-  const { data, loading, error } = useData(fetcher, [filters, refreshKey, panelId])
+  const fetcher = useCallback(
+    src === 'seg'
+      ? () => api.segments(effectiveFilters, panelId, top)
+      : () => api.atributos(effectiveFilters, panelId, top),
+    [effectiveFilters, panelId, top, refreshKey]
+  )
+
+  const { data, loading, error } = useData(fetcher, [effectiveFilters, refreshKey, panelId])
   const rows   = data?.data || []
   const hasPP  = rows.length > 0 && rows[0]?.presupuesto != null
   const totalVN = rows.reduce((s, d) => s + (d.ventas_netas || 0), 0)
@@ -84,13 +100,17 @@ export function DimPanel({ panelId, label, src, top, filters, refreshKey }) {
         {/* Bar chart */}
         <div className={`xl:col-span-3 h-56 ${loading ? 'opacity-40 animate-pulse' : ''}`}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 2, right: 16, left: 4, bottom: 2 }} barCategoryGap="25%">
+            <BarChart data={chartData} layout="vertical" margin={{ top: 2, right: 16, left: 4, bottom: 2 }} barCategoryGap="25%"
+              style={onDrill ? { cursor: 'pointer' } : {}}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
               <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={fmtCOP} />
               <YAxis type="category" dataKey="name" tick={{ fill: '#cbd5e1', fontSize: 10 }} axisLine={false} tickLine={false} width={120} />
               <Tooltip content={<TTip />} />
               <Legend wrapperStyle={{ fontSize: 10 }} formatter={(v) => <span style={{ color: '#94a3b8' }}>{v}</span>} />
-              <Bar dataKey="ventas_netas" name="Ventas Netas" fill={C_VN} radius={[0, 3, 3, 0]} barSize={13}>
+              <Bar dataKey="ventas_netas" name="Ventas Netas" fill={C_VN} radius={[0, 3, 3, 0]} barSize={13}
+                onClick={onDrill ? (d) => onDrill(panelId, rows.find((r) => r.dimension?.slice(0, 22) + (r.dimension?.length > 22 ? '…' : '') === d.name || r.dimension === d.name)?.dimension) : undefined}
+              >
                 {!hasPP && chartData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
               </Bar>
               {hasPP
@@ -106,8 +126,10 @@ export function DimPanel({ panelId, label, src, top, filters, refreshKey }) {
         {/* Pie */}
         <div className={`xl:col-span-2 h-56 ${loading ? 'opacity-40 animate-pulse' : ''}`}>
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} dataKey="value" nameKey="name" paddingAngle={2}>
+            <PieChart style={onDrill ? { cursor: 'pointer' } : {}}>
+              <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} dataKey="value" nameKey="name" paddingAngle={2}
+                onClick={onDrill ? (e) => onDrill(panelId, rows.find((r) => (r.dimension?.slice(0, 18) + (r.dimension?.length > 18 ? '…' : '')) === e.name || r.dimension === e.name)?.dimension) : undefined}
+              >
                 {pieData.map((e, i) => <Cell key={i} fill={e.fill} />)}
               </Pie>
               <Tooltip formatter={(v) => fmtCOP(v)} contentStyle={{ background: '#161b27', border: '1px solid #1f2937', borderRadius: 8, fontSize: 10 }} />
@@ -139,7 +161,10 @@ export function DimPanel({ panelId, label, src, top, filters, refreshKey }) {
                   <tr key={i}><td colSpan={colSpanSkeleton}><div className="animate-pulse h-5 my-1.5 bg-surface-700 rounded" /></td></tr>
                 ))
               : rows.slice(0, 15).map((d, i) => (
-                  <tr key={i} className="border-b border-surface-700/30 hover:bg-surface-700/20">
+                  <tr key={i}
+                    className={`border-b border-surface-700/30 transition-colors ${onDrill ? 'cursor-pointer hover:bg-brand-500/10' : 'hover:bg-surface-700/20'}`}
+                    onClick={onDrill ? () => onDrill(panelId, d.dimension) : undefined}
+                  >
                     <td className="py-2 text-slate-500">{i + 1}</td>
                     <td className="py-2 font-medium text-slate-100">
                       <div className="flex items-center gap-1.5">
@@ -194,19 +219,42 @@ export function DimensionesView() {
   const { refreshKey } = useOutletContext()
   const { filters }    = useFilters()
   const [active, setActive] = useState(null)
+  // drill: { panelId, filterKey, value, label } — cross-panel filter applied when user clicks a bar/row
+  const [drill, setDrill]   = useState(null)
 
   const period = formatPeriod(filters.ano, filters.mes, filters.mes_fin)
+
+  const handleDrill = useCallback((panelId, rawValue) => {
+    const filterKey = DRILL_FILTER_MAP[panelId]
+    if (!filterKey || !rawValue || rawValue === 'Sin Clasificar') return
+    const panel = PANELS.find((p) => p.id === panelId)
+    setDrill((prev) =>
+      prev?.panelId === panelId && prev?.value === rawValue
+        ? null  // clicking same item clears the drill
+        : { panelId, filterKey, value: rawValue, label: panel?.label ?? panelId }
+    )
+  }, [])
 
   const visiblePanels = active ? PANELS.filter((p) => p.id === active) : PANELS
 
   return (
     <div className="flex flex-col gap-5 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-bold text-slate-100">Análisis por Dimensión</h1>
-          <p className="text-slate-500 text-xs mt-0.5">Tipo de venta, stock, estructura y tipo de producto · {period}</p>
+          <p className="text-slate-500 text-xs mt-0.5">Tipo de venta, stock, línea, estructura y tipo de producto · {period}</p>
         </div>
-        <div className="flex gap-1 flex-wrap justify-end">
+        <div className="flex gap-1 flex-wrap justify-end items-center">
+          {/* Drill-down chip */}
+          {drill && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-brand-500/20 border border-brand-500/40 text-brand-300 text-xs font-medium">
+              <span className="text-slate-400">{drill.label}:</span>
+              <span>{drill.value}</span>
+              <button onClick={() => setDrill(null)} className="ml-1 hover:text-white transition-colors">
+                <X size={12} />
+              </button>
+            </div>
+          )}
           <button onClick={() => setActive(null)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!active ? 'bg-brand-600 text-white' : 'bg-surface-800 text-slate-400 hover:text-slate-100 border border-surface-700'}`}>
             Todos
@@ -229,6 +277,8 @@ export function DimensionesView() {
           top={p.top}
           filters={filters}
           refreshKey={refreshKey}
+          drill={drill}
+          onDrill={DRILL_FILTER_MAP[p.id] ? handleDrill : undefined}
         />
       ))}
     </div>

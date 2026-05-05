@@ -1,7 +1,46 @@
 import { useEffect, useRef, useState } from 'react'
-import { SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, Globe, Store, Search } from 'lucide-react'
+import { SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, Globe, Store, Search, Bookmark, BookmarkCheck, Trash2 } from 'lucide-react'
 import { useFilters } from '../../context/FilterContext'
 import { api } from '../../services/api'
+
+const STORAGE_KEY = 'bi_ventas_favoritos'
+
+function useFavoritos(filters, update) {
+  const [favoritos, setFavoritos]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
+  })
+  const [open, setOpen]             = useState(false)
+  const [nombre, setNombre]         = useState('')
+  const [guardando, setGuardando]   = useState(false)
+  const panelRef                    = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (panelRef.current && !panelRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const guardar = () => {
+    if (!nombre.trim()) return
+    const nuevo = { id: Date.now(), nombre: nombre.trim(), filters: { ...filters } }
+    const lista = [nuevo, ...favoritos.filter((f) => f.nombre !== nombre.trim())].slice(0, 12)
+    setFavoritos(lista)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(lista))
+    setNombre('')
+    setGuardando(false)
+  }
+
+  const cargar = (fav) => { update(fav.filters); setOpen(false) }
+
+  const eliminar = (id, e) => {
+    e.stopPropagation()
+    const lista = favoritos.filter((f) => f.id !== id)
+    setFavoritos(lista)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(lista))
+  }
+
+  return { favoritos, open, setOpen, nombre, setNombre, guardando, setGuardando, guardar, cargar, eliminar, panelRef }
+}
 
 const MN = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
@@ -15,7 +54,8 @@ const PRESETS = [
 ]
 
 export function GlobalFilters({ collapsed, onToggle }) {
-  const { filters, update, reset } = useFilters()
+  const { filters, update, reset, compPeriod, updateComp } = useFilters()
+  const fav = useFavoritos(filters, update)
   const [opts, setOpts] = useState({ anos: [], regiones: [], vendedores: [], grupos: [], lineas: [], mercados: [] })
   const [clienteInput, setClienteInput] = useState(filters.cliente || '')
   const debounceRef = useRef(null)
@@ -155,7 +195,49 @@ export function GlobalFilters({ collapsed, onToggle }) {
           {filters.excl_pvta ? 'Sin PVTA' : 'Con PVTA'}
         </button>
 
-        <button onClick={handleReset} className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors">
+        {/* Favoritos */}
+        <div className="relative ml-auto" ref={fav.panelRef}>
+          <button onClick={() => { fav.setOpen((o) => !o); fav.setGuardando(false) }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${fav.open ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-amber-300'}`}>
+            <Bookmark size={12} />
+            Favoritos {fav.favoritos.length > 0 && <span className="bg-amber-500/30 text-amber-300 px-1 rounded">{fav.favoritos.length}</span>}
+          </button>
+          {fav.open && (
+            <div className="absolute right-0 top-8 z-50 w-64 bg-surface-800 border border-surface-600 rounded-xl shadow-xl p-3">
+              {/* Guardar actual */}
+              {fav.guardando ? (
+                <div className="flex gap-1.5 mb-3">
+                  <input autoFocus value={fav.nombre} onChange={(e) => fav.setNombre(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && fav.guardar()}
+                    placeholder="Nombre del preset…"
+                    className="flex-1 bg-surface-700 border border-surface-600 text-slate-100 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 placeholder-slate-500" />
+                  <button onClick={fav.guardar} className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded-lg font-medium">OK</button>
+                  <button onClick={() => fav.setGuardando(false)} className="px-2 py-1.5 bg-surface-700 text-slate-400 text-xs rounded-lg">✕</button>
+                </div>
+              ) : (
+                <button onClick={() => fav.setGuardando(true)}
+                  className="w-full flex items-center gap-1.5 px-2.5 py-2 mb-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-medium hover:bg-amber-500/20 transition-colors">
+                  <BookmarkCheck size={12} /> Guardar filtros actuales
+                </button>
+              )}
+              {fav.favoritos.length === 0
+                ? <p className="text-slate-500 text-xs text-center py-2">No hay favoritos guardados</p>
+                : fav.favoritos.map((f) => (
+                  <div key={f.id} onClick={() => fav.cargar(f)}
+                    className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-surface-700 cursor-pointer group transition-colors">
+                    <span className="text-xs text-slate-200 truncate">{f.nombre}</span>
+                    <button onClick={(e) => fav.eliminar(f.id, e)}
+                      className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-all ml-2 flex-shrink-0">
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+        </div>
+
+        <button onClick={handleReset} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors">
           <RotateCcw size={11} /> Limpiar
         </button>
       </div>
@@ -168,6 +250,38 @@ export function GlobalFilters({ collapsed, onToggle }) {
           <DimSelect label="Grupo Comerc." value={filters.grupo_comercial} onChange={(v) => update({ grupo_comercial: v })} options={opts.grupos} />
           <DimSelect label="Línea Neg."    value={filters.planta}          onChange={(v) => update({ planta: v })}          options={opts.lineas} />
           <DimSelect label="Mercado"       value={filters.mercado}         onChange={(v) => update({ mercado: v })}         options={opts.mercados} />
+          {/* Comparador de período */}
+          <div className="flex items-center gap-1.5 border-l border-surface-700 pl-3">
+            <button
+              onClick={() => updateComp({ activo: !compPeriod.activo })}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all whitespace-nowrap ${
+                compPeriod.activo
+                  ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
+                  : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-violet-300'
+              }`}
+            >
+              ⇄ Comparar vs
+            </button>
+            {compPeriod.activo && (
+              <>
+                <select
+                  className="bg-surface-700 border border-surface-600 text-slate-100 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer"
+                  value={compPeriod.ano}
+                  onChange={(e) => updateComp({ ano: Number(e.target.value) })}
+                >
+                  {opts.anos.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
+                <select
+                  className="bg-surface-700 border border-surface-600 text-slate-100 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer"
+                  value={compPeriod.mes ?? ''}
+                  onChange={(e) => updateComp({ mes: e.target.value ? Number(e.target.value) : null })}
+                >
+                  <option value="">Año completo</option>
+                  {MN.map((n, i) => <option key={i} value={i + 1}>{n}</option>)}
+                </select>
+              </>
+            )}
+          </div>
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-slate-400 whitespace-nowrap">Cliente</label>
             <div className="relative">

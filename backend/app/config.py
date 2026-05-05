@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     SNOWFLAKE_SCHEMA_MAESTROS: str = "MAESTROS"
 
     GOOGLE_AI_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
 
     CACHE_TTL_HOURS: int = 6
     REFRESH_HOUR: int = 3

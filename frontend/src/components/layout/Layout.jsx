@@ -5,7 +5,8 @@ import { GlobalFilters } from '../filters/GlobalFilters'
 import {
   LayoutDashboard, TrendingUp, MapPin, Users2,
   Package, Users, BellRing, RefreshCw, Activity,
-  Lightbulb, BotMessageSquare, LayoutGrid, Globe, Target, BookOpen, Rocket, Mail,
+  Lightbulb, BotMessageSquare, LayoutGrid, Globe, Target, BookOpen, Rocket, Mail, LineChart, Ruler,
+  Heart, Trophy, Zap, GitBranch, ShoppingCart, Sliders, FileText,
 } from 'lucide-react'
 import { api } from '../../services/api'
 import logoAlico from '../../assets/logo.png'
@@ -18,6 +19,7 @@ const TABS = [
   { to: '/productos',  label: 'Productos',  icon: Package         },
   { to: '/clientes',   label: 'Clientes',   icon: Users           },
   { to: '/alertas',    label: 'Alertas',    icon: BellRing        },
+  { to: '/pronosticos',   label: 'Pronósticos',   icon: LineChart  },
   { to: '/mercados',   label: 'Mercados',   icon: Globe           },
   { to: '/hallazgos',     label: 'Hallazgos',     icon: Lightbulb       },
   { to: '/oportunidades', label: 'Oportunidades', icon: Rocket          },
@@ -25,7 +27,15 @@ const TABS = [
   { to: '/dimensiones',  label: 'Dimensiones',  icon: LayoutGrid },
   { to: '/presupuesto',  label: 'Presupuesto',  icon: Target     },
   { to: '/diccionario',    label: 'Diccionario',    icon: BookOpen },
-  { to: '/notificaciones', label: 'Notificaciones', icon: Mail     },
+  { to: '/notificaciones',   label: 'Notificaciones',   icon: Mail         },
+  { to: '/comercializacion', label: 'Comercialización', icon: Ruler        },
+  { to: '/score-salud',      label: 'Score Salud',      icon: Heart        },
+  { to: '/ranking',          label: 'Ranking',          icon: Trophy       },
+  { to: '/anomalias',        label: 'Anomalías',        icon: Zap          },
+  { to: '/cohort',           label: 'Cohortes',         icon: GitBranch    },
+  { to: '/canasta',          label: 'Canasta',          icon: ShoppingCart },
+  { to: '/simulador',        label: 'Simulador',        icon: Sliders      },
+  { to: '/reporte',          label: 'Reporte PDF',      icon: FileText     },
 ]
 
 function TabBar({ onRefresh, refreshing }) {

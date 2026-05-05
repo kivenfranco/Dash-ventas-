@@ -41,6 +41,21 @@ export const api = {
   clientesLista:     (filters, estado, topN) => http.get('/clientes/lista',   { params: { ...toParams(filters), ...(estado ? { estado } : {}), top_n: topN || 500 } }).then((r) => r.data),
   clientesBreakdown: (filters)             => http.get('/clientes/breakdown', { params: toParams(filters) }).then((r) => r.data),
 
+  pronosticos: (params) => http.get('/pronosticos', { params }).then((r) => r.data),
+
+  comercializacion:          (filters) => http.get('/comercializacion', { params: { ano: filters.ano, ...(filters.mes ? { mes: filters.mes } : {}), ...(filters.mes_fin && filters.mes_fin !== filters.mes ? { mes_fin: filters.mes_fin } : {}) } }).then((r) => r.data),
+  comercializacionPronostico: (meses)  => http.get('/comercializacion/pronostico', { params: { meses } }).then((r) => r.data),
+
+  scoreSalud:    (ano, mes, topN, exclPvta) => http.get('/score-salud', { params: { ano, ...(mes ? { mes } : {}), top_n: topN || 100, excl_pvta: exclPvta ?? true } }).then((r) => r.data),
+  ranking:       (ano, mes, groupBy, topN)  => http.get('/ranking',     { params: { ano, ...(mes ? { mes } : {}), group_by: groupBy || 'descripcion', top_n: topN || 30 } }).then((r) => r.data),
+  anomaliasAuto: (ano, mes, groupBy, umbral)=> http.get('/anomalias-auto', { params: { ano, ...(mes ? { mes } : {}), group_by: groupBy || 'linea_negocio', umbral_z: umbral || 1.5 } }).then((r) => r.data),
+  cohort:        (anoInicio, meses, exclPvta) => http.get('/cohort',    { params: { ano_inicio: anoInicio, meses: meses || 12, excl_pvta: exclPvta ?? true } }).then((r) => r.data),
+  canasta:       (ano, mes, topN, minSoporte, exclPvta) => http.get('/canasta', { params: { ano, ...(mes ? { mes } : {}), top_n: topN || 30, min_soporte: minSoporte || 0.02, excl_pvta: exclPvta ?? true } }).then((r) => r.data),
+
+  factoresCom:       ()             => http.get('/factores-com').then((r) => r.data),
+  factoresComSave:   (body)         => http.post('/factores-com', body).then((r) => r.data),
+  factoresComDelete: (codigo)       => http.delete(`/factores-com/${codigo}`).then((r) => r.data),
+
   // Notificaciones
   notifConfig:       ()               => http.get('/notificaciones/config').then((r) => r.data),
   notifContactos:    ()               => http.get('/notificaciones/contactos').then((r) => r.data),

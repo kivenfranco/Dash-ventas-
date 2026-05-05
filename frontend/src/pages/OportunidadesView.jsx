@@ -340,10 +340,5 @@ const RECOMENDACIONES = [
 ]
 
 function _shortCOP(v) {
-  if (v == null) return '—'
-  const a = Math.abs(v)
-  if (a >= 1_000_000_000) return `$${(a / 1_000_000_000).toFixed(1)}B`
-  if (a >= 1_000_000)     return `$${(a / 1_000_000).toFixed(0)}M`
-  if (a >= 1_000)         return `$${(a / 1_000).toFixed(0)}K`
-  return `$${a.toFixed(0)}`
+  return fmtCOP(v, 2)
 }
