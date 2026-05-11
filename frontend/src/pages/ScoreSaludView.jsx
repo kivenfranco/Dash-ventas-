@@ -59,7 +59,7 @@ export function ScoreSaludView() {
   useEffect(() => { load() }, [load])
 
   const rows = (data?.data || [])
-    .filter((r) => !search || r.vendedor.toLowerCase().includes(search.toLowerCase()))
+    .filter((r) => !search || (r.nombre_cliente || r.numero_cliente || '').toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       const av = a[sortCol] ?? -Infinity
       const bv = b[sortCol] ?? -Infinity
@@ -73,8 +73,8 @@ export function ScoreSaludView() {
 
   const exportXlsx = () => {
     const ws = XLSX.utils.json_to_sheet(rows.map((r) => ({
-      Vendedor: r.vendedor, 'Score Salud': r.score_salud,
-      Estado: scoreBadge(r.score_salud).label,
+      'Cód. Cliente': r.numero_cliente, Cliente: r.nombre_cliente,
+      'Score Salud': r.score_salud, Estado: scoreBadge(r.score_salud).label,
       'Ventas Actuales': r.ventas_netas, 'Ventas Año Ant.': r.ventas_ant,
       'Var. YoY %': r.variacion_yoy_pct, 'Meses Activos': r.meses_activos,
       'Último Mes': r.ultimo_mes, '# Productos': r.num_productos,
@@ -137,10 +137,10 @@ export function ScoreSaludView() {
         </label>
         <input
           value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar vendedor…"
+          placeholder="Buscar cliente…"
           className="bg-surface-700 border border-surface-600 text-slate-200 text-xs rounded px-3 py-1 w-44"
         />
-        <span className="text-xs text-slate-500 ml-auto">{rows.length} vendedores</span>
+        <span className="text-xs text-slate-500 ml-auto">{rows.length} clientes</span>
       </div>
 
       {/* Summary cards */}
@@ -176,7 +176,7 @@ export function ScoreSaludView() {
               <thead className="bg-surface-900/60 border-b border-surface-700">
                 <tr>
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-400 uppercase tracking-wide w-8">#</th>
-                  <TH col="vendedor">Vendedor</TH>
+                  <TH col="nombre_cliente">Cliente</TH>
                   <TH col="score_salud">Score Salud</TH>
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-400 uppercase tracking-wide">Estado</th>
                   <TH col="ventas_netas">Ventas</TH>
@@ -192,9 +192,12 @@ export function ScoreSaludView() {
                 {rows.map((r, i) => {
                   const badge = scoreBadge(r.score_salud)
                   return (
-                    <tr key={r.vendedor} className="border-t border-surface-700/50 hover:bg-surface-700/30 transition-colors">
+                    <tr key={r.numero_cliente} className="border-t border-surface-700/50 hover:bg-surface-700/30 transition-colors">
                       <td className="px-3 py-2 text-xs text-slate-600">{i + 1}</td>
-                      <td className="px-3 py-2 text-xs text-slate-200 font-medium max-w-[140px] truncate">{r.vendedor}</td>
+                      <td className="px-3 py-2 text-xs text-slate-200 font-medium max-w-[160px]">
+                        <div className="truncate">{r.nombre_cliente || r.numero_cliente}</div>
+                        <div className="text-slate-500 font-mono">{r.numero_cliente}</div>
+                      </td>
                       <td className="px-3 py-2 min-w-[140px]">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-1.5 bg-surface-700 rounded-full overflow-hidden">

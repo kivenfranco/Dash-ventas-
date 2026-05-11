@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM_NAME: str = "BI Ventas ALICO"
     ALERTAS_ENABLED: bool = True
+    ANOMALIA_UMBRAL_PCT: float = -15.0
 
     # Auth
     AUTH_SECRET_KEY: str = "bi-ventas-secret-change-in-production-2024"
@@ -48,6 +49,7 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:5174"
+    DEBUG: bool = False
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useFilters } from '../context/FilterContext'
 import { api } from '../services/api'
-import { Bot, Send, User, ChevronDown, ChevronUp, Database, Loader2, Trash2 } from 'lucide-react'
+import { Bot, Send, User, ChevronDown, ChevronUp, Database, Loader2, Trash2, Zap } from 'lucide-react'
 
 function SqlBlock({ sql, descripcion, datos }) {
   const [openSql, setOpenSql]   = useState(false)
@@ -60,6 +60,18 @@ function SqlBlock({ sql, descripcion, datos }) {
   )
 }
 
+function TokenUsage({ usage }) {
+  if (!usage) return null
+  return (
+    <div className="flex items-center gap-1 text-xs text-slate-500 mt-2">
+      <Zap size={11} />
+      <span>
+        {usage.input_tokens} in · {usage.output_tokens} out
+      </span>
+    </div>
+  )
+}
+
 function Mensaje({ msg }) {
   const isUser = msg.role === 'user'
   return (
@@ -75,7 +87,10 @@ function Mensaje({ msg }) {
         }`}>
           {msg.content}
         </div>
-        {!isUser && <SqlBlock sql={msg.sql} descripcion={msg.sql_descripcion} datos={msg.datos} />}
+        {!isUser && (
+          <SqlBlock sql={msg.sql} descripcion={msg.sql_descripcion} datos={msg.datos} />
+        )}
+        {!isUser && <TokenUsage usage={msg.uso} />}
       </div>
     </div>
   )
@@ -89,10 +104,14 @@ const SUGERENCIAS = [
   '¿Qué vendedor tiene mejor cumplimiento de presupuesto?',
 ]
 
+const CHAT_KEY = 'bi_agente_chat'
+
 export function AgenteView() {
   const { refreshKey }  = useOutletContext()
   const { filters }     = useFilters()
-  const [mensajes, setMensajes] = useState([])
+  const [mensajes, setMensajes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]') } catch { return [] }
+  })
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState(null)
@@ -100,13 +119,17 @@ export function AgenteView() {
   const inputRef  = useRef(null)
 
   useEffect(() => {
+    try { localStorage.setItem(CHAT_KEY, JSON.stringify(mensajes)) } catch (_) {}
+  }, [mensajes])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [mensajes, loading])
 
   const buildHistorial = (msgs) =>
     msgs.flatMap((m) => {
-      if (m.role === 'user')      return [{ role: 'user', content: m.content }]
-      if (m.role === 'assistant') return [{ role: 'user', content: m.content }]
+      if (m.role === 'user')      return [{ role: 'user',      content: m.content }]
+      if (m.role === 'assistant') return [{ role: 'assistant', content: m.content }]
       return []
     })
 
@@ -131,6 +154,7 @@ export function AgenteView() {
           sql: res.sql,
           sql_descripcion: res.sql_descripcion,
           datos: res.datos,
+          uso: res.uso,
         },
       ])
     } catch (err) {
@@ -146,6 +170,7 @@ export function AgenteView() {
   const limpiar = () => {
     setMensajes([])
     setError(null)
+    try { localStorage.removeItem(CHAT_KEY) } catch (_) {}
     inputRef.current?.focus()
   }
 

@@ -15,17 +15,19 @@ from ..database.snowflake_connector import connector
 router = APIRouter(prefix="/api/atributos", tags=["Atributos"])
 logger = logging.getLogger(__name__)
 
-_VALID_GROUPS = "^(es_stock|estructura|dispositivo|tipo_producto|tipo_fabricacion|descripcion_parte|linea_negocio)$"
+_VALID_GROUPS = "^(es_stock|estructura|dispositivo|tipo_producto|tipo_fabricacion|descripcion_parte|linea_negocio|descripcion|grupo_comercial)$"
 
 _DIM_MAP = {
     # (sql_expr, dim_source, filter_nulls)
-    "es_stock":         ("CASE WHEN dp.ES_STOCK THEN 'Stock' ELSE 'No Stock' END",    "parte",       False),
-    "estructura":       ("COALESCE(dp.ESTRUCTURA,    'Sin Clasificar')",               "parte",       False),
-    "dispositivo":      ("COALESCE(dp.DISPOSITIVO,   'Sin Clasificar')",               "parte",       False),
-    "tipo_producto":    ("COALESCE(dp.TIPO_PRODUCTO, 'Sin Clasificar')",               "parte",       False),
+    "es_stock":         ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",              "grupo_prod",  False),
+    "estructura":       ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",              "grupo_prod",  False),
+    "dispositivo":      ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",              "grupo_prod",  False),
+    "tipo_producto":    ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",              "grupo_prod",  False),
     "tipo_fabricacion": ("dgc.TIPO_FABRICACION",                                       "grupo",       True),
-    "descripcion_parte":("dp.DESCRIPCION",                                             "parte",       True),
+    "descripcion_parte":("fv.CODIGO_PRODUCTO",                                         "ninguno",     True),
+    "descripcion":      ("fv.CODIGO_PRODUCTO",                                         "ninguno",     True),
     "linea_negocio":    ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",              "grupo_prod",  False),
+    "grupo_comercial":  ("COALESCE(dgc.NOMBRE_GRUPO, 'Sin Clasificar')",               "grupo",       False),
 }
 
 
@@ -33,19 +35,12 @@ def _build_sql(cfg, group_by, ano, mes, region, vendedor, planta, grupo_comercia
     dim_col, dim_src, filter_nulls = _DIM_MAP[group_by]
 
     joins = []
-    if dim_src in ("parte", None):
-        # QUALIFY deduplica DIM_PARTE (tiene múltiples filas por producto)
-        dp_sub = (
-            f"(SELECT CODIGO_PRODUCTO, ES_STOCK, ESTRUCTURA, TIPO_PRODUCTO, DISPOSITIVO, DESCRIPCION "
-            f"FROM {cfg.TM('DIM_PARTE')} "
-            f"QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY ESTRUCTURA NULLS LAST, TIPO_PRODUCTO NULLS LAST, CODIGO_PRODUCTO) = 1)"
-        )
-        joins.append(f"LEFT JOIN {dp_sub} dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO")
     if dim_src == "grupo_prod":
         joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO")
     if dim_src == "grupo":
         joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO")
         joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO")
+    # dim_src == "ninguno": no join needed (uses fv columns directly)
 
     cond = ["fv.ANO_FISCAL = %s"]
     if filter_nulls:
@@ -118,7 +113,7 @@ def get_atributos(
     vendedor: Optional[str] = None,
     planta: Optional[str] = None,
     grupo_comercial: Optional[str] = None,
-    top_n: int = Query(20, ge=1, le=50),
+    top_n: int = Query(20, ge=1, le=500),
     excl_exportacion: bool = Query(False),
     excl_pvta: bool = Query(False),
 ):

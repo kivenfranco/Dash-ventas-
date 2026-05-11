@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, Globe, Store, Search, Bookmark, BookmarkCheck, Trash2 } from 'lucide-react'
+import {
+  SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp,
+  Globe, Store, Search, Bookmark, BookmarkCheck, Trash2, X, Check,
+} from 'lucide-react'
 import { useFilters } from '../../context/FilterContext'
 import { api } from '../../services/api'
 
 const STORAGE_KEY = 'bi_ventas_favoritos'
 
-function useFavoritos(filters, update) {
+function useFavoritos(rawFilters, update) {
   const [favoritos, setFavoritos]   = useState(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
   })
@@ -22,7 +25,7 @@ function useFavoritos(filters, update) {
 
   const guardar = () => {
     if (!nombre.trim()) return
-    const nuevo = { id: Date.now(), nombre: nombre.trim(), filters: { ...filters } }
+    const nuevo = { id: Date.now(), nombre: nombre.trim(), filters: { ...rawFilters } }
     const lista = [nuevo, ...favoritos.filter((f) => f.nombre !== nombre.trim())].slice(0, 12)
     setFavoritos(lista)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lista))
@@ -54,11 +57,20 @@ const PRESETS = [
 ]
 
 export function GlobalFilters({ collapsed, onToggle }) {
-  const { filters, update, reset, compPeriod, updateComp } = useFilters()
-  const fav = useFavoritos(filters, update)
+  const { filters, _raw, update, reset, compPeriod, updateComp } = useFilters()
+  const rawFilters = _raw || filters
+  const fav = useFavoritos(rawFilters, update)
+
   const [opts, setOpts] = useState({ anos: [], regiones: [], vendedores: [], grupos: [], lineas: [], mercados: [] })
   const [clienteInput, setClienteInput] = useState(filters.cliente || '')
   const debounceRef = useRef(null)
+
+  // Selected arrays (from _raw so we get real arrays)
+  const selRegiones  = rawFilters.region          || []
+  const selVendedores= rawFilters.vendedor         || []
+  const selGrupos    = rawFilters.grupo_comercial  || []
+  const selPlantas   = rawFilters.planta           || []
+  const selMercados  = rawFilters.mercado          || []
 
   useEffect(() => {
     Promise.allSettled([
@@ -86,47 +98,74 @@ export function GlobalFilters({ collapsed, onToggle }) {
     debounceRef.current = setTimeout(() => update({ cliente: v.trim() }), 450)
   }
 
-  const activeFilters = [
-    { key: 'region',          label: 'Región',   value: filters.region },
-    { key: 'vendedor',        label: 'Vendedor', value: filters.vendedor },
-    { key: 'grupo_comercial', label: 'Grupo',    value: filters.grupo_comercial },
-    { key: 'planta',          label: 'Línea',    value: filters.planta },
-    { key: 'mercado',         label: 'Mercado',  value: filters.mercado },
-    { key: 'cliente',         label: 'Cliente',  value: filters.cliente },
-  ].filter((f) => f.value)
-
+  // ── Month selection (range) ─────────────────────────────────────────────────
   const selectMes = (m) => {
-    if (filters.mes === m && !filters.mes_fin) {
-      update({ mes: null, mes_fin: null })
-    } else {
+    const { mes, mes_fin } = filters
+    if (!mes) {
       update({ mes: m, mes_fin: null })
+    } else if (!mes_fin) {
+      if (m === mes) update({ mes: null, mes_fin: null })
+      else if (m > mes) update({ mes_fin: m })
+      else update({ mes: m, mes_fin: null })
+    } else {
+      // Range already set: extend or contract
+      if (m > mes_fin)       update({ mes_fin: m })
+      else if (m < mes)      update({ mes: m })
+      else if (m === mes && mes === mes_fin) update({ mes: null, mes_fin: null })
+      else if (m === mes)    update({ mes: mes + 1 <= mes_fin ? mes + 1 : null, mes_fin: mes + 1 <= mes_fin ? mes_fin : null })
+      else if (m === mes_fin)update({ mes_fin: mes_fin - 1 >= mes ? mes_fin - 1 : null })
+      else                   update({ mes: m, mes_fin: null })
     }
   }
 
   const selectPreset = (p) => {
-    if (filters.mes === p.mes && filters.mes_fin === p.mes_fin) {
-      update({ mes: null, mes_fin: null })
-    } else {
-      update({ mes: p.mes, mes_fin: p.mes_fin })
-    }
+    if (filters.mes === p.mes && filters.mes_fin === p.mes_fin) update({ mes: null, mes_fin: null })
+    else update({ mes: p.mes, mes_fin: p.mes_fin })
   }
 
-  const isMonthActive  = (m) => filters.mes === m && (!filters.mes_fin || filters.mes_fin === m)
+  const isMonthActive  = (m) => {
+    if (!filters.mes) return false
+    if (!filters.mes_fin) return filters.mes === m
+    return m >= filters.mes && m <= filters.mes_fin
+  }
+  const isMonthEdge    = (m) => m === filters.mes || m === filters.mes_fin
   const isPresetActive = (p) => filters.mes === p.mes && filters.mes_fin === p.mes_fin
 
-  const handleReset = () => {
-    setClienteInput('')
-    reset()
+  const rangeLabel = filters.mes
+    ? filters.mes_fin && filters.mes_fin !== filters.mes
+      ? `${MN[filters.mes - 1]} → ${MN[filters.mes_fin - 1]} · ${filters.mes_fin - filters.mes + 1} meses`
+      : MN[filters.mes - 1]
+    : null
+
+  const handleReset = () => { setClienteInput(''); reset() }
+
+  // ── Multi-select togglers ───────────────────────────────────────────────────
+  const toggleDim = (key, value) => {
+    const current = rawFilters[key] || []
+    const next    = current.includes(value) ? current.filter((v) => v !== value) : [...current, value]
+    update({ [key]: next })
   }
+
+  const removeDimValue = (key, value) => {
+    const next = (rawFilters[key] || []).filter((v) => v !== value)
+    update({ [key]: next })
+  }
+
+  // Total active dimension chips for badge
+  const totalActiveDims = selRegiones.length + selVendedores.length + selGrupos.length + selPlantas.length + selMercados.length
 
   return (
     <div className="px-5 py-2">
+      {/* ── Row 1: year, months, presets, quick toggles ── */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Toggle */}
         <button onClick={onToggle} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-100 transition-colors">
           <SlidersHorizontal size={13} />
           <span className="font-medium">Filtros</span>
           {collapsed ? <ChevronDown size={12}/> : <ChevronUp size={12}/>}
+          {totalActiveDims > 0 && (
+            <span className="bg-brand-600/40 text-brand-300 text-[10px] px-1.5 rounded-full font-bold">{totalActiveDims}</span>
+          )}
         </button>
 
         {/* Año */}
@@ -139,12 +178,19 @@ export function GlobalFilters({ collapsed, onToggle }) {
         </select>
 
         {/* Month pills */}
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1 items-center">
           <Pill label="Año" active={!filters.mes} onClick={() => update({ mes: null, mes_fin: null })} />
           {MN.map((name, i) => (
-            <Pill key={i} label={name} active={isMonthActive(i + 1)} onClick={() => selectMes(i + 1)} />
+            <Pill key={i} label={name} active={isMonthActive(i + 1)} edge={isMonthEdge(i + 1)} onClick={() => selectMes(i + 1)} />
           ))}
         </div>
+
+        {/* Range label */}
+        {rangeLabel && (
+          <span className="px-2.5 py-1 rounded-lg bg-brand-600/15 border border-brand-500/30 text-xs text-brand-300 font-medium">
+            {rangeLabel}
+          </span>
+        )}
 
         {/* Quarter / Semester presets */}
         <div className="flex flex-wrap gap-1 border-l border-surface-700 pl-3">
@@ -152,20 +198,6 @@ export function GlobalFilters({ collapsed, onToggle }) {
             <Pill key={p.label} label={p.label} active={isPresetActive(p)} onClick={() => selectPreset(p)} accent />
           ))}
         </div>
-
-        {/* Active dimension chips */}
-        {activeFilters.map((f) => (
-          <span
-            key={f.key}
-            onClick={() => {
-              if (f.key === 'cliente') setClienteInput('')
-              update({ [f.key]: '' })
-            }}
-            className="badge badge-blue cursor-pointer hover:bg-red-500/20 hover:text-red-400 transition-colors text-xs"
-          >
-            {f.label}: {f.value} ×
-          </span>
-        ))}
 
         {/* Excl exportación */}
         <button
@@ -175,7 +207,7 @@ export function GlobalFilters({ collapsed, onToggle }) {
               ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
               : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-slate-100'
           }`}
-          title="Excluir ventas de exportación (ZONA EXPORTACIONES)"
+          title="Excluir ventas de exportación"
         >
           <Globe size={12} />
           {filters.excl_exportacion ? 'Solo Nacional' : 'Nacional+Exp'}
@@ -189,7 +221,7 @@ export function GlobalFilters({ collapsed, onToggle }) {
               ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
               : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-slate-100'
           }`}
-          title="Excluir puntos de venta (PVTA*, PBOGOTA)"
+          title="Excluir puntos de venta"
         >
           <Store size={12} />
           {filters.excl_pvta ? 'Sin PVTA' : 'Con PVTA'}
@@ -204,7 +236,6 @@ export function GlobalFilters({ collapsed, onToggle }) {
           </button>
           {fav.open && (
             <div className="absolute right-0 top-8 z-50 w-64 bg-surface-800 border border-surface-600 rounded-xl shadow-xl p-3">
-              {/* Guardar actual */}
               {fav.guardando ? (
                 <div className="flex gap-1.5 mb-3">
                   <input autoFocus value={fav.nombre} onChange={(e) => fav.setNombre(e.target.value)}
@@ -242,14 +273,46 @@ export function GlobalFilters({ collapsed, onToggle }) {
         </button>
       </div>
 
-      {/* Expanded dimension filters */}
+      {/* ── Row 2: dimension multi-selects + active chips ── */}
       {!collapsed && (
-        <div className="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-surface-700/50">
-          <DimSelect label="Región"        value={filters.region}          onChange={(v) => update({ region: v })}          options={opts.regiones} />
-          <DimSelect label="Vendedor"      value={filters.vendedor}        onChange={(v) => update({ vendedor: v })}        options={opts.vendedores.map((v) => ({ value: v.CODIGO_VENDEDOR || v.codigo_vendedor, label: v.NOMBRE || v.nombre || v }))} />
-          <DimSelect label="Grupo Comerc." value={filters.grupo_comercial} onChange={(v) => update({ grupo_comercial: v })} options={opts.grupos} />
-          <DimSelect label="Línea Neg."    value={filters.planta}          onChange={(v) => update({ planta: v })}          options={opts.lineas} />
-          <DimSelect label="Mercado"       value={filters.mercado}         onChange={(v) => update({ mercado: v })}         options={opts.mercados} />
+        <div className="flex flex-wrap items-start gap-3 mt-2 pt-2 border-t border-surface-700/50">
+          {/* Multi-select dropdowns */}
+          <MultiDimSelect
+            label="Región"
+            selected={selRegiones}
+            options={opts.regiones}
+            onToggle={(v) => toggleDim('region', v)}
+            onClear={() => update({ region: [] })}
+          />
+          <MultiDimSelect
+            label="Vendedor"
+            selected={selVendedores}
+            options={opts.vendedores.map((v) => ({ value: v.CODIGO_VENDEDOR || v.codigo_vendedor || v, label: v.NOMBRE || v.nombre || v }))}
+            onToggle={(v) => toggleDim('vendedor', v)}
+            onClear={() => update({ vendedor: [] })}
+          />
+          <MultiDimSelect
+            label="Grupo Comerc."
+            selected={selGrupos}
+            options={opts.grupos}
+            onToggle={(v) => toggleDim('grupo_comercial', v)}
+            onClear={() => update({ grupo_comercial: [] })}
+          />
+          <MultiDimSelect
+            label="Línea Neg."
+            selected={selPlantas}
+            options={opts.lineas}
+            onToggle={(v) => toggleDim('planta', v)}
+            onClear={() => update({ planta: [] })}
+          />
+          <MultiDimSelect
+            label="Mercado"
+            selected={selMercados}
+            options={opts.mercados}
+            onToggle={(v) => toggleDim('mercado', v)}
+            onClear={() => update({ mercado: [] })}
+          />
+
           {/* Comparador de período */}
           <div className="flex items-center gap-1.5 border-l border-surface-700 pl-3">
             <button
@@ -282,6 +345,8 @@ export function GlobalFilters({ collapsed, onToggle }) {
               </>
             )}
           </div>
+
+          {/* Cliente */}
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-slate-400 whitespace-nowrap">Cliente</label>
             <div className="relative">
@@ -297,18 +362,59 @@ export function GlobalFilters({ collapsed, onToggle }) {
           </div>
         </div>
       )}
+
+      {/* ── Active dimension chips ── */}
+      {totalActiveDims > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {[
+            { key: 'region',          label: 'Región',   values: selRegiones   },
+            { key: 'vendedor',        label: 'Vend.',    values: selVendedores  },
+            { key: 'grupo_comercial', label: 'Grupo',    values: selGrupos      },
+            { key: 'planta',          label: 'Línea',    values: selPlantas     },
+            { key: 'mercado',         label: 'Mercado',  values: selMercados    },
+          ].flatMap(({ key, label, values }) =>
+            values.map((v) => (
+              <span
+                key={`${key}-${v}`}
+                onClick={() => removeDimValue(key, v)}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-brand-500/15 text-brand-300 cursor-pointer hover:bg-red-500/20 hover:text-red-400 transition-colors"
+              >
+                <span className="text-slate-500">{label}:</span> {v}
+                <X size={10} />
+              </span>
+            ))
+          )}
+          {filters.cliente && (
+            <span
+              onClick={() => { setClienteInput(''); update({ cliente: '' }) }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-brand-500/15 text-brand-300 cursor-pointer hover:bg-red-500/20 hover:text-red-400 transition-colors"
+            >
+              <span className="text-slate-500">Cliente:</span> {filters.cliente}
+              <X size={10} />
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-function Pill({ label, active, onClick, accent = false }) {
+// ── Sub-components ──────────────────────────────────────────────────────────
+
+function Pill({ label, active, edge, onClick, accent = false }) {
   return (
     <button
       onClick={onClick}
       className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-        active
+        edge && active
           ? accent ? 'bg-cyan-600/80 text-white' : 'bg-brand-600 text-white'
-          : accent ? 'bg-surface-700 text-cyan-400 hover:text-cyan-200 border border-cyan-800/40' : 'bg-surface-700 text-slate-400 hover:text-slate-100'
+          : active && !accent
+          ? 'bg-brand-600/40 text-brand-200 ring-1 ring-brand-500/50'
+          : active && accent
+          ? 'bg-cyan-600/80 text-white'
+          : accent
+          ? 'bg-surface-700 text-cyan-400 hover:text-cyan-200 border border-cyan-800/40'
+          : 'bg-surface-700 text-slate-400 hover:text-slate-100'
       }`}
     >
       {label}
@@ -316,22 +422,104 @@ function Pill({ label, active, onClick, accent = false }) {
   )
 }
 
-function DimSelect({ label, value, onChange, options }) {
+function MultiDimSelect({ label, selected, options, onToggle, onClear }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const h = (e) => { if (!ref.current?.contains(e.target)) { setOpen(false); setSearch('') } }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const normalized = options.map((o) => {
+    const val = typeof o === 'object' ? (o.value ?? o.id ?? o) : o
+    const lbl = typeof o === 'object' ? (o.label ?? o.name ?? String(val)) : String(o)
+    return { val: String(val), lbl }
+  })
+
+  const filtered = search
+    ? normalized.filter(({ lbl }) => lbl.toLowerCase().includes(search.toLowerCase()))
+    : normalized
+
+  const hasSelection = selected.length > 0
+
   return (
-    <div className="flex items-center gap-1.5">
-      <label className="text-xs text-slate-400 whitespace-nowrap">{label}</label>
-      <select
-        className="bg-surface-700 border border-surface-600 text-slate-100 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer w-36"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+          hasSelection
+            ? 'bg-brand-600/20 text-brand-300 border-brand-500/40'
+            : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-slate-100'
+        }`}
       >
-        <option value="">Todos</option>
-        {options.map((o) => {
-          const val = typeof o === 'object' ? o.value : o
-          const lbl = typeof o === 'object' ? o.label : o
-          return <option key={val} value={val}>{lbl}</option>
-        })}
-      </select>
+        {label}
+        {hasSelection && (
+          <span className="bg-brand-500/40 text-brand-200 text-[10px] px-1.5 rounded-full font-bold leading-4">
+            {selected.length}
+          </span>
+        )}
+        <ChevronDown size={11} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-50 w-56 bg-surface-800 border border-surface-600 rounded-xl shadow-2xl overflow-hidden">
+          {/* Search */}
+          <div className="p-2 border-b border-surface-700">
+            <div className="relative">
+              <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar…"
+                className="w-full bg-surface-700 border border-surface-600 text-slate-200 text-xs rounded-lg pl-6 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-500 placeholder-slate-500"
+              />
+            </div>
+          </div>
+
+          {/* Options */}
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-3">Sin resultados</p>
+            ) : (
+              filtered.map(({ val, lbl }) => {
+                const active = selected.includes(val)
+                return (
+                  <div
+                    key={val}
+                    onClick={() => onToggle(val)}
+                    className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer text-xs transition-colors ${
+                      active ? 'bg-brand-600/15 text-brand-300' : 'text-slate-300 hover:bg-surface-700'
+                    }`}
+                  >
+                    <div className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                      active ? 'bg-brand-500 border-brand-500' : 'border-slate-500'
+                    }`}>
+                      {active && <Check size={9} className="text-white" />}
+                    </div>
+                    <span className="truncate">{lbl}</span>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* Clear action */}
+          {hasSelection && (
+            <div className="p-2 border-t border-surface-700">
+              <button
+                onClick={() => { onClear(); setOpen(false) }}
+                className="w-full text-xs text-slate-400 hover:text-red-400 py-1 transition-colors"
+              >
+                Limpiar selección ({selected.length})
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

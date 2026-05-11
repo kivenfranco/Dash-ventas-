@@ -7,7 +7,7 @@ import { fmtCOP, fmtPct, fmtInt, MONTH_NAMES } from '../utils/format'
 import { exportToExcel } from '../utils/exportExcel'
 import {
   BellRing, AlertTriangle, AlertCircle, Info,
-  TrendingDown, Store, Clock, BarChart2, Activity,
+  TrendingDown, Store, Clock, BarChart2, Activity, Zap,
   Download, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import {
@@ -70,11 +70,21 @@ const RFM_COLORS = {
 }
 
 const TABS = [
-  { id: 'caida',     label: 'Caída YoY',    icon: TrendingDown },
-  { id: 'tendencia', label: 'Tendencia 6m', icon: Activity     },
-  { id: 'inactivos', label: 'Inactivos',    icon: Clock        },
-  { id: 'rfm',       label: 'RFM',          icon: BarChart2    },
+  { id: 'caida',      label: 'Caída YoY',    icon: TrendingDown },
+  { id: 'tendencia',  label: 'Tendencia 6m', icon: Activity     },
+  { id: 'inactivos',  label: 'Inactivos',    icon: Clock        },
+  { id: 'rfm',        label: 'RFM',          icon: BarChart2    },
+  { id: 'predictivo', label: 'Predictivo',   icon: Zap          },
 ]
+
+const LEAD_ORDER_A = ['Inmediato', 'Corto plazo', 'Mediano plazo', 'Largo plazo']
+const LEAD_CFG_A = {
+  'Inmediato':     { text: 'text-red-400',     bg: 'bg-red-500/15',    border: 'border-red-500/30'     },
+  'Corto plazo':   { text: 'text-orange-400',  bg: 'bg-orange-500/15', border: 'border-orange-500/30'  },
+  'Mediano plazo': { text: 'text-amber-400',   bg: 'bg-amber-500/15',  border: 'border-amber-500/30'   },
+  'Largo plazo':   { text: 'text-emerald-400', bg: 'bg-emerald-500/15',border: 'border-emerald-500/30' },
+}
+const RIESGO_COL_A = { Alto: '#ef4444', Medio: '#f59e0b', Bajo: '#22c55e' }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -149,10 +159,11 @@ export function AlertasView() {
         ))}
       </div>
 
-      {tab === 'caida'     && <CaidaTab     filters={filters} refreshKey={refreshKey} umbral={umbral}       setUmbral={setUmbral}         exclPvta={exclPvta} esStock={esStock} />}
-      {tab === 'tendencia' && <TendenciaTab filters={filters} refreshKey={refreshKey} mesesTend={mesesTend} setMesesTend={setMesesTend}   exclPvta={exclPvta} esStock={esStock} />}
-      {tab === 'inactivos' && <InactivosTab filters={filters} refreshKey={refreshKey} meses={meses}         setMeses={setMeses}           exclPvta={exclPvta} esStock={esStock} />}
-      {tab === 'rfm'       && <RFMTab       filters={filters} refreshKey={refreshKey}                                                     exclPvta={exclPvta} esStock={esStock} />}
+      {tab === 'caida'      && <CaidaTab      filters={filters} refreshKey={refreshKey} umbral={umbral}       setUmbral={setUmbral}       exclPvta={exclPvta} esStock={esStock} />}
+      {tab === 'tendencia'  && <TendenciaTab  filters={filters} refreshKey={refreshKey} mesesTend={mesesTend} setMesesTend={setMesesTend} exclPvta={exclPvta} esStock={esStock} />}
+      {tab === 'inactivos'  && <InactivosTab  filters={filters} refreshKey={refreshKey} meses={meses}         setMeses={setMeses}         exclPvta={exclPvta} esStock={esStock} />}
+      {tab === 'rfm'        && <RFMTab        filters={filters} refreshKey={refreshKey}                                                   exclPvta={exclPvta} esStock={esStock} />}
+      {tab === 'predictivo' && <PredictTab    filters={filters} refreshKey={refreshKey}                                                   exclPvta={exclPvta} />}
     </div>
   )
 }
@@ -723,4 +734,153 @@ const ESTADO_COLORS = {
 function EstadoBadge({ estado }) {
   const cls = ESTADO_COLORS[estado?.toUpperCase()] || 'badge-blue'
   return <span className={`badge ${cls} text-xs`}>{estado || '—'}</span>
+}
+
+// ── Predictivo (Churn) ────────────────────────────────────────────────────────
+
+const fmtV = (v) => {
+  if (v == null || isNaN(v)) return '—'
+  const a = Math.abs(v)
+  if (a >= 1e6) return `$${(a/1e6).toFixed(1)}M`
+  if (a >= 1e3) return `$${(a/1e3).toFixed(0)}K`
+  return `$${v.toFixed(0)}`
+}
+
+function PredictTab({ filters, refreshKey, exclPvta }) {
+  const [page, setPage]             = useState(1)
+  const [leadFilter, setLeadFilter] = useState('all')
+  const { data, loading }           = useData(
+    () => api.churn(filters.ano, exclPvta, 500),
+    [filters, refreshKey, exclPvta]
+  )
+
+  const rows        = data?.data        || []
+  const leadResumen = data?.lead_time_resumen || {}
+  const metodo      = data?.metodo      || ''
+
+  const filtered  = leadFilter === 'all' ? rows : rows.filter((r) => r.lead_time_alerta === leadFilter)
+  const pageRows  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const handleExport = () => exportToExcel(filtered, [
+    { key: 'nombre_cliente',       header: 'Cliente'          },
+    { key: 'numero_cliente',       header: 'N° Cliente'       },
+    { key: 'prob_churn',           header: 'Prob. Churn %'    },
+    { key: 'riesgo',               header: 'Riesgo'           },
+    { key: 'lead_time_alerta',     header: 'Lead Time'        },
+    { key: 'ventas_cur',           header: 'Venta Actual'     },
+    { key: 'variacion_yoy',        header: 'Var. YoY %'       },
+    { key: 'diversidad_productos', header: 'Div. Productos'   },
+    { key: 'pausa_maxima_meses',   header: 'Pausa Máx. Meses' },
+  ], `Predictivo_Churn_${filters.ano}`)
+
+  return (
+    <>
+      {/* Lead time summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {LEAD_ORDER_A.map((lt) => {
+          const cfg = LEAD_CFG_A[lt]
+          return (
+            <button key={lt}
+              onClick={() => { setLeadFilter(leadFilter === lt ? 'all' : lt); setPage(1) }}
+              className={`border rounded-xl p-4 text-left transition-all ${cfg.bg} ${cfg.border} ${
+                leadFilter === lt ? 'ring-2 ring-brand-500' : 'hover:scale-[1.02]'
+              }`}>
+              <p className={`text-xs font-bold ${cfg.text}`}>{lt}</p>
+              <p className={`text-2xl font-bold mt-1 ${cfg.text}`}>{leadResumen[lt] || 0}</p>
+              <p className="text-xs text-slate-500 mt-1">clientes</p>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-200">
+              Predicción de abandono · {filtered.length} clientes
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {metodo === 'logistic_regression' ? 'Regresión Logística' : 'Modelo heurístico'}
+              {' · '}ordenados por probabilidad de churn
+              {leadFilter !== 'all' && <span className="ml-1 text-brand-400">— {leadFilter}</span>}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {leadFilter !== 'all' && (
+              <FilterBtn active={false} onClick={() => { setLeadFilter('all'); setPage(1) }}>Ver todos ×</FilterBtn>
+            )}
+            {filtered.length > 0 && <ExportBtn onClick={handleExport} count={filtered.length} />}
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left border-b border-surface-700 text-slate-400">
+                <th className="pb-2 font-medium">#</th>
+                <th className="pb-2 font-medium">Lead Time</th>
+                <th className="pb-2 font-medium">Cliente</th>
+                <th className="pb-2 font-medium text-right">Venta Actual</th>
+                <th className="pb-2 font-medium text-right">Var. YoY</th>
+                <th className="pb-2 font-medium text-right">Prob. Churn</th>
+                <th className="pb-2 font-medium text-center">Riesgo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading
+                ? [...Array(8)].map((_, i) => (
+                    <tr key={i}><td colSpan={7}><div className="animate-pulse h-5 my-2 bg-surface-700 rounded" /></td></tr>
+                  ))
+                : pageRows.length === 0
+                ? <tr><td colSpan={7} className="py-10 text-center text-slate-500">Sin datos de predicción</td></tr>
+                : pageRows.map((r, i) => {
+                    const lt    = r.lead_time_alerta
+                    const ltCfg = LEAD_CFG_A[lt] || LEAD_CFG_A['Largo plazo']
+                    return (
+                      <tr key={i} className="border-b border-surface-700/30 hover:bg-surface-700/20">
+                        <td className="py-2 text-slate-500">{(page - 1) * PAGE_SIZE + i + 1}</td>
+                        <td className="py-2">
+                          <span className={`badge ${ltCfg.bg} ${ltCfg.text} border ${ltCfg.border} text-xs`}>
+                            {lt || '—'}
+                          </span>
+                        </td>
+                        <td className="py-2 font-medium text-slate-100 max-w-[180px] truncate">
+                          <div title={r.nombre_cliente}>{r.nombre_cliente}</div>
+                          <div className="text-slate-500 font-mono">{r.numero_cliente}</div>
+                        </td>
+                        <td className="py-2 text-right text-slate-300">{fmtV(r.ventas_cur)}</td>
+                        <td className={`py-2 text-right font-medium ${
+                          r.variacion_yoy == null ? 'text-slate-500'
+                            : r.variacion_yoy >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        }`}>
+                          {r.variacion_yoy != null ? `${r.variacion_yoy > 0 ? '+' : ''}${r.variacion_yoy.toFixed(1)}%` : '—'}
+                        </td>
+                        <td className="py-2 text-right">
+                          <div className="flex items-center gap-2 justify-end">
+                            <div className="w-16 bg-surface-700 rounded-full h-1.5 overflow-hidden">
+                              <div className="h-1.5 rounded-full"
+                                style={{ width: `${r.prob_churn ?? 0}%`, background: RIESGO_COL_A[r.riesgo] || '#6b7280' }} />
+                            </div>
+                            <span className="text-slate-200 w-8 text-right font-medium">{(r.prob_churn ?? 0).toFixed(0)}%</span>
+                          </div>
+                        </td>
+                        <td className="py-2 text-center">
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                            style={{
+                              background: (RIESGO_COL_A[r.riesgo] || '#6b7280') + '25',
+                              color:       RIESGO_COL_A[r.riesgo] || '#6b7280',
+                            }}>
+                            {r.riesgo}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
+        <Pagination page={page} setPage={setPage} total={filtered.length} />
+      </div>
+    </>
+  )
 }

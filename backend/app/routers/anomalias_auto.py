@@ -23,10 +23,10 @@ _DIM_SQL = {
     "linea_negocio": ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",
                       "LEFT JOIN {dgp} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO"),
     "vendedor":      ("COALESCE(fv.CODIGO_VENDEDOR, 'Sin Vendedor')", ""),
-    "estructura":    ("COALESCE(dp.ESTRUCTURA, 'Sin Clasificar')",
-                      "LEFT JOIN (SELECT CODIGO_PRODUCTO, ESTRUCTURA FROM {dp} QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY ESTRUCTURA NULLS LAST, CODIGO_PRODUCTO)=1) dp ON fv.CODIGO_PRODUCTO=dp.CODIGO_PRODUCTO"),
-    "tipo_producto": ("COALESCE(dp.TIPO_PRODUCTO, 'Sin Clasificar')",
-                      "LEFT JOIN (SELECT CODIGO_PRODUCTO, TIPO_PRODUCTO FROM {dp} QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY TIPO_PRODUCTO NULLS LAST, CODIGO_PRODUCTO)=1) dp ON fv.CODIGO_PRODUCTO=dp.CODIGO_PRODUCTO"),
+    "estructura":    ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",
+                      "LEFT JOIN {dgp} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO"),
+    "tipo_producto": ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",
+                      "LEFT JOIN {dgp} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO"),
 }
 
 
@@ -58,7 +58,6 @@ def get_anomalias(
     dim_col, join_tmpl = _DIM_SQL[group_by]
     joins = join_tmpl.format(
         dgp=cfg.TM("DIM_GRUPO_PRODUCTO"),
-        dp=cfg.TM("DIM_PARTE"),
     )
 
     anos = [ano - 1, ano]

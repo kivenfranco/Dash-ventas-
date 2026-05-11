@@ -1,0 +1,12 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "nombre": "Administrador",
+      "email": "admin@alico.com",
+      "password_hash": "$2b$12$bmiX01KZsfPTKRoLP6wgueuSkT1tjDWVVckS.CzBCczj/r9CrRiYi",
+      "rol": "admin",
+      "codigo_vendedor": null
+    }
+  ]
+}

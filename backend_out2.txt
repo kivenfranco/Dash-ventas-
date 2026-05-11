@@ -1,0 +1,170 @@
+2026-05-04 17:43:30 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 17:43:30 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 18:56:33 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-04 18:56:33 [INFO] app.main: BI Ventas API shut down
+2026-05-04 18:56:36 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 18:56:36 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 20:20:54 [ERROR] app.database.snowflake_connector: Snowflake connection error: 000979 (42601): SQL compilation error:
+[DD.DESCRIPCION_REGION] is not a valid group by expression
+2026-05-04 20:20:56 [ERROR] app.database.snowflake_connector: Snowflake connection error: 000979 (42601): SQL compilation error:
+[DD.DESCRIPCION_REGION] is not a valid group by expression
+2026-05-04 21:50:32 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-04 21:50:32 [INFO] app.main: BI Ventas API shut down
+2026-05-04 21:50:35 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 21:50:35 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 21:50:37 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 21:50:37 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 21:57:12 [INFO] app.scheduler.jobs: Scheduled refresh started at 2026-05-04T21:57:12.926330
+2026-05-04 21:57:15 [INFO] app.database.snowflake_connector: Connected: warehouse=SNOWFLAKE_LEARNING_WH db=GOLD
+2026-05-04 21:57:16 [INFO] app.database.cache: Cache flushed (13 entries removed)
+2026-05-04 21:57:16 [INFO] app.scheduler.jobs: Scheduled refresh completed — cache invalidated
+2026-05-04 21:57:38 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-04 21:57:38 [INFO] app.main: BI Ventas API shut down
+2026-05-04 21:57:42 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 21:57:42 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 21:59:24 [INFO] app.scheduler.jobs: Scheduled refresh started at 2026-05-04T21:59:24.772065
+2026-05-04 21:59:29 [INFO] app.database.snowflake_connector: Connected: warehouse=SNOWFLAKE_LEARNING_WH db=GOLD
+2026-05-04 21:59:29 [INFO] app.database.cache: Cache flushed (0 entries removed)
+2026-05-04 21:59:29 [INFO] app.scheduler.jobs: Scheduled refresh completed — cache invalidated
+2026-05-04 21:59:29 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-04 21:59:29 [INFO] app.main: BI Ventas API shut down
+2026-05-04 21:59:32 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 21:59:32 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 21:59:32 [WARNING] app.routers.comercializacion: COM SQL: 
+        SELECT
+            fv.ANO_FISCAL                              AS ano,
+            fv.PERIODO_FISCAL                          AS mes,
+            dp.DESCRIPCION                             AS producto,
+            COALESCE(dp.UNIDAD_MEDIDA, 'SIN_UOM')      AS uom,
+            COALESCE(SUM(fv.CANTIDAD),     0)           AS cantidad,
+            COALESCE(SUM(fv.VENTAS_NETAS), 0)           AS ventas_netas
+        FROM GOLD.VENTAS.FACT_VENTAS fv
+        LEFT JOIN (SELECT CODIGO_PRODUCTO, DESCRIPCION, UNIDAD_MEDIDA FROM GOLD.MAESTROS.DIM_PARTE QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY UNIDAD_MEDIDA NULLS LAST, CODIGO_PRODUCTO) = 1) dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO
+        LEFT JOIN GOLD.MAESTROS.DIM_GRUPO_PRODUCTO dgp ON fv.CODIGO_PRODUCTO = dgp.CODIG | PARAMS: [2026, 'COMERCIALIZACION', 5]
+2026-05-04 21:59:37 [WARNING] app.routers.comercializacion: COM rows returned: 61
+2026-05-04 22:01:46 [INFO] app.scheduler.jobs: Scheduled refresh started at 2026-05-04T22:01:46.304393
+2026-05-04 22:01:49 [INFO] app.database.snowflake_connector: Connected: warehouse=SNOWFLAKE_LEARNING_WH db=GOLD
+2026-05-04 22:01:49 [INFO] app.database.cache: Cache flushed (1 entries removed)
+2026-05-04 22:01:49 [INFO] app.scheduler.jobs: Scheduled refresh completed — cache invalidated
+2026-05-04 22:01:49 [WARNING] app.routers.comercializacion: COM SQL: 
+        SELECT
+            fv.ANO_FISCAL                              AS ano,
+            fv.PERIODO_FISCAL                          AS mes,
+            dp.DESCRIPCION                             AS producto,
+            COALESCE(dp.UNIDAD_MEDIDA, 'SIN_UOM')      AS uom,
+            COALESCE(SUM(fv.CANTIDAD),     0)           AS cantidad,
+            COALESCE(SUM(fv.VENTAS_NETAS), 0)           AS ventas_netas
+        FROM GOLD.VENTAS.FACT_VENTAS fv
+        LEFT JOIN (SELECT CODIGO_PRODUCTO, DESCRIPCION, UNIDAD_MEDIDA FROM GOLD.MAESTROS.DIM_PARTE QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY UNIDAD_MEDIDA NULLS LAST, CODIGO_PRODUCTO) = 1) dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO
+        LEFT JOIN GOLD.MAESTROS.DIM_GRUPO_PRODUCTO dgp ON fv.CODIGO_PRODUCTO = dgp.CODIG | PARAMS: [2026, 'COMERCIALIZACION', 5]
+2026-05-04 22:01:51 [WARNING] app.routers.comercializacion: COM rows returned: 61
+2026-05-04 22:04:30 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-04 22:04:30 [INFO] app.main: BI Ventas API shut down
+2026-05-04 22:04:33 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:04:33 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:04:35 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:04:35 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:05:01 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-04 22:05:01 [INFO] app.main: BI Ventas API shut down
+2026-05-04 22:05:03 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:05:03 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:05:06 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:05:06 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:05:26 [INFO] app.scheduler.jobs: Scheduled refresh started at 2026-05-04T22:05:26.304370
+2026-05-04 22:05:31 [INFO] app.database.snowflake_connector: Connected: warehouse=SNOWFLAKE_LEARNING_WH db=GOLD
+2026-05-04 22:05:31 [INFO] app.database.cache: Cache flushed (0 entries removed)
+2026-05-04 22:05:31 [INFO] app.scheduler.jobs: Scheduled refresh completed — cache invalidated
+2026-05-04 22:05:34 [INFO] app.routers.comercializacion: Comercializacion: 63 filas
+2026-05-04 22:06:12 [INFO] app.routers.comercializacion: Comercializacion: 7 filas
+2026-05-04 22:06:40 [INFO] app.routers.comercializacion: Comercializacion: 12 filas
+2026-05-04 22:30:41 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-04 22:30:41 [INFO] app.main: BI Ventas API shut down
+2026-05-04 22:30:44 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:30:44 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:30:46 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:30:46 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:31:12 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-04 22:31:12 [INFO] app.main: BI Ventas API shut down
+2026-05-04 22:31:14 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:31:14 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:31:16 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:31:17 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:32:32 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-04 22:32:32 [INFO] app.main: BI Ventas API shut down
+2026-05-04 22:32:35 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:32:35 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:32:37 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:32:37 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:32:41 [INFO] app.routers.comercializacion: Comercializacion: 7 filas
+2026-05-04 22:40:44 [ERROR] app.routers.score_salud: Score salud error: not enough arguments for format string
+2026-05-04 22:40:46 [ERROR] app.routers.score_salud: Score salud error: not enough arguments for format string
+2026-05-04 22:42:36 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-04 22:42:36 [INFO] app.main: BI Ventas API shut down
+2026-05-04 22:42:38 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:42:38 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:42:41 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:42:41 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-04 22:45:13 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-04 22:45:13 [INFO] app.main: BI Ventas API shut down
+2026-05-04 22:45:16 [INFO] app.main: BI Ventas API starting up…
+2026-05-04 22:45:16 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-05 00:11:27 [INFO] app.scheduler.jobs: Scheduler stopped
+2026-05-05 00:11:27 [INFO] app.main: BI Ventas API shut down
+2026-05-05 00:11:30 [INFO] app.main: BI Ventas API starting up…
+2026-05-05 00:11:30 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-05 00:11:32 [INFO] app.main: BI Ventas API starting up…
+2026-05-05 00:11:32 [INFO] app.scheduler.jobs: Scheduler started — refresh 03:00 COL · alertas lunes 08:00 COL
+2026-05-05 00:19:17 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A0282CB60>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=e66f6868-6b72-4ae9-b618-8dc05b4a992c&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=1892c895-b143-47ca-9b23-96a6838d34cc
+2026-05-05 00:19:17 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A040DDE80>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=0d74f1a9-27b9-42f1-b9ee-f70d632bcc0c&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=ba0bb52a-afbf-42e3-abc6-9393348fbd61
+2026-05-05 00:19:17 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A040DE000>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=24424596-d267-4086-b4e9-65c6d3c31287&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=f8d1cd1f-81e9-4eda-8724-6ac861b9aec5
+2026-05-05 00:19:17 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A04104C50>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=8227bf78-598a-48b3-85ad-aa5371c6384c&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=476bfa80-5e3d-4b77-b3a2-d3d79aeded8d
+2026-05-05 00:19:17 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A04105460>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=0a6e3004-7ee9-474e-9448-d8962327e852&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=035dd0f7-984b-49b6-8af9-699bb5261853
+2026-05-05 00:19:17 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A04105DC0>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=d3f7a4ab-a6f9-43e1-8879-6cac1717f81e&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=dc14c3c8-e810-4e87-9931-1a07091b36c8
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A041740B0>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=c6b67ba6-6836-4939-9192-e77c21b39504&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=75cd9c7c-1a07-43a0-961d-bd4a5294344b
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A04174B60>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=2fc688b0-247a-466b-97a6-582cab3370d2&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=6bf79454-c10c-4072-8935-caabcffee68f
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A04175CA0>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=b7ac1489-4854-49c6-91b8-d772773d9ba4&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=aa06bcc8-6172-44f6-a60a-762f41d021d4
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A04175760>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=fcee9b0c-f98a-4ab7-9f3e-32f67fe77c50&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=e8d2faf9-8aa5-4f32-bb37-edad56a2ffc7
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A04174D70>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=af797bb0-51e1-4632-895c-1345e6b66885&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=f7057295-fb9c-4afa-a3da-82490bce546a
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A04174830>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=712f1356-4845-4c0a-b831-a87014736ce4&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=d66becaf-2d7a-423e-a95a-271bd3908a15
+2026-05-05 00:19:18 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:18 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:18 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:18 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:18 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:18 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:18 [ERROR] app.routers.filters: filter f:gc failed: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:18 [ERROR] app.routers.filters: filter f:lineas failed: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:18 [ERROR] app.routers.filters: filter f:mercados failed: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:18 [ERROR] app.routers.filters: filter f:regiones failed: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:18 [ERROR] app.routers.filters: filter f:anos failed: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A041772C0>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=cb6d87b0-4fa8-47e8-851d-26bb3120dae6&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=680c96b3-0156-4754-b128-92c0d4c9ae44
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A042C9370>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=130a90ce-7889-45a0-bb57-232527ca1764&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=944cdc67-c93d-4904-8bb0-3501cfbac5a3
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A042C9160>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=9cbd08c9-fd5b-49b9-8e80-def876fa5f8c&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=3c03ca92-9cb7-4144-b101-c5f829b9a79a
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A042C95B0>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=5b2c1d55-73d3-4172-b372-e9b2e33806db&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=029d99a2-6eb1-44f4-9c31-246b0df873bc
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A042C9CA0>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=412ce14c-e2e5-4500-9c7d-d3a434943c53&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=5e706739-ba1f-4b71-8120-490fc63fc625
+2026-05-05 00:19:18 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A042CBF20>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=dac35009-768e-4f60-b4a8-09bf39bbb85d&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=f828a24c-09a9-4c83-8dcc-3e7629a6f196
+2026-05-05 00:19:19 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A042F0560>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=593c9bdf-31e1-445c-b2ab-3f72d44ec4dd&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=390ebf02-3e96-4a5d-a733-28d1dcbcef38
+2026-05-05 00:19:19 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A042F2090>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=649cee0b-f026-42e3-953b-216e697a7215&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=9d847ab2-0545-4717-8aed-a793d82238b6
+2026-05-05 00:19:19 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A042F1C40>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=e89601d2-f5ad-4453-be23-17f41af1da45&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=183550a9-8790-4c31-a0a7-69b9157a967b
+2026-05-05 00:19:19 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A042F1E80>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=40092d60-346d-4b25-a383-35a6d1eacef2&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=386d8978-9bb1-46f1-ae89-484fdec3e48b
+2026-05-05 00:19:19 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A042F22A0>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=5cb6eab6-49be-43eb-a4c7-24e7c6da116b&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=e1d5dc34-5755-439a-912e-cd05e4c826e1
+2026-05-05 00:19:19 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A042F2AE0>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=b24baf10-810f-470d-aff5-5eb13343a274&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=b69d3cdf-e353-4998-b580-9e716396b3d6
+2026-05-05 00:19:19 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:19 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:19 [ERROR] app.routers.kpis: KPI error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:19 [ERROR] app.routers.filters: filter f:gc failed: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:19 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:19 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:19 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:19 [ERROR] app.routers.filters: filter f:mercados failed: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:19 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:19 [ERROR] app.routers.filters: filter f:lineas failed: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:19 [ERROR] app.routers.filters: filter f:regiones failed: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:19 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A04324B90>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=8f1ae93f-caaa-4b54-b887-e8482de31383&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=983b5c87-bd0f-42ee-b583-d96cdfcf433f
+2026-05-05 00:19:19 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A04324DA0>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=4e2a9b92-6763-45ad-bdb5-5df2d9091846&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=9b4ee2fa-213f-4402-b035-5ae1f5fe2329
+2026-05-05 00:19:20 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A043265A0>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=5b50f6cd-19ab-4eda-9b38-ba3a79062fd4&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=6f9ee0bb-6a21-4eb3-b57d-dce8f593a65b
+2026-05-05 00:19:20 [WARNING] snowflake.connector.vendored.urllib3.connectionpool: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<snowflake.connector.vendored.urllib3.connection.HTTPSConnection object at 0x0000023A04326960>: Failed to establish a new connection: [Errno 11001] getaddrinfo failed')': /session/v1/login-request?request_id=33402bcf-1062-425b-98f6-b6b61e808c89&databaseName=GOLD&schemaName=VENTAS&warehouse=SNOWFLAKE_LEARNING_WH&request_guid=c1d30397-8599-4681-b63a-cb4c4e67ee10
+2026-05-05 00:19:20 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:20 [ERROR] app.database.snowflake_connector: Snowflake connection error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:20 [ERROR] app.routers.filters: filter f:anos failed: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting
+2026-05-05 00:19:20 [ERROR] app.routers.kpis: KPI error: 250001: Could not connect to Snowflake backend after 2 attempt(s).Aborting

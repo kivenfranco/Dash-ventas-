@@ -57,7 +57,7 @@ def get_score(
     elif mes_max:
         cond_cur.append("fv.PERIODO_FISCAL <= %s"); params_cur.append(mes_max)
     if excl_pvta:
-        cond_cur.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%' OR fv.CODIGO_VENDEDOR IS NULL)")
+        cond_cur.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)")
 
     cond_ant = ["fv.ANO_FISCAL = %s"]
     params_ant: list = [ano - 1]
@@ -66,15 +66,15 @@ def get_score(
     elif mes_max:
         cond_ant.append("fv.PERIODO_FISCAL <= %s"); params_ant.append(mes_max)
     if excl_pvta:
-        cond_ant.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%' OR fv.CODIGO_VENDEDOR IS NULL)")
+        cond_ant.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)")
 
     sql_cur = f"""
         SELECT
-            fv.CODIGO_VENDEDOR                     AS vendedor,
-            COALESCE(SUM(fv.VENTAS_NETAS), 0)       AS ventas_netas,
-            COUNT(DISTINCT fv.PERIODO_FISCAL)        AS meses_activos,
-            MAX(fv.PERIODO_FISCAL)                   AS ultimo_mes,
-            COUNT(DISTINCT fv.CODIGO_PRODUCTO)       AS num_productos
+            fv.NUMERO_CLIENTE                        AS numero_cliente,
+            COALESCE(SUM(fv.VENTAS_NETAS), 0)        AS ventas_netas,
+            COUNT(DISTINCT fv.PERIODO_FISCAL)         AS meses_activos,
+            MAX(fv.PERIODO_FISCAL)                    AS ultimo_mes,
+            COUNT(DISTINCT fv.CODIGO_PRODUCTO)        AS num_productos
         FROM {cfg.T('FACT_VENTAS')} fv
         WHERE {' AND '.join(cond_cur)}
         GROUP BY 1
@@ -82,7 +82,7 @@ def get_score(
         LIMIT {top_n}
     """
     sql_ant = f"""
-        SELECT fv.CODIGO_VENDEDOR AS vendedor, COALESCE(SUM(fv.VENTAS_NETAS), 0) AS ventas_ant
+        SELECT fv.NUMERO_CLIENTE AS numero_cliente, COALESCE(SUM(fv.VENTAS_NETAS), 0) AS ventas_ant
         FROM {cfg.T('FACT_VENTAS')} fv
         WHERE {' AND '.join(cond_ant)}
         GROUP BY 1
@@ -93,15 +93,22 @@ def get_score(
         df_ant = connector.query(sql_ant, params_ant)
         df.columns     = [c.lower() for c in df.columns]
         df_ant.columns = [c.lower() for c in df_ant.columns]
+
+        df_dim = connector.query(
+            f"SELECT NUMERO_CLIENTE, COALESCE(NOMBRE, TO_VARCHAR(NUMERO_CLIENTE)) AS nombre FROM {cfg.TM('DIM_CLIENTE')}"
+        )
+        df_dim.columns = [c.lower() for c in df_dim.columns]
     except Exception as exc:
         logger.error("Score salud error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc))
 
-    df = df.merge(df_ant, on="vendedor", how="left")
-    df["ventas_ant"] = pd.to_numeric(df["ventas_ant"], errors="coerce").fillna(0)
+    df = df.merge(df_ant, on="numero_cliente", how="left")
+    df = df.merge(df_dim, on="numero_cliente", how="left")
+    df["nombre"]       = df.get("nombre", df["numero_cliente"].astype(str))
+    df["ventas_ant"]   = pd.to_numeric(df["ventas_ant"], errors="coerce").fillna(0)
     df["ventas_netas"] = pd.to_numeric(df["ventas_netas"], errors="coerce").fillna(0)
-    df["meses_activos"] = pd.to_numeric(df["meses_activos"], errors="coerce").fillna(0)
-    df["ultimo_mes"] = pd.to_numeric(df["ultimo_mes"], errors="coerce").fillna(0)
+    df["meses_activos"]= pd.to_numeric(df["meses_activos"], errors="coerce").fillna(0)
+    df["ultimo_mes"]   = pd.to_numeric(df["ultimo_mes"], errors="coerce").fillna(0)
 
     max_mes = mes or mes_max or 12
     df["recencia"] = max_mes - df["ultimo_mes"]  # 0=activo este mes, mayor=más inactivo
@@ -126,7 +133,8 @@ def get_score(
     records = []
     for _, r in df.iterrows():
         records.append({
-            "vendedor":        str(r["vendedor"] or "—"),
+            "numero_cliente":  str(r["numero_cliente"]),
+            "nombre_cliente":  str(r["nombre"]) if pd.notna(r.get("nombre")) and r.get("nombre") else str(r["numero_cliente"]),
             "ventas_netas":    round(float(r["ventas_netas"]), 2),
             "ventas_ant":      round(float(r["ventas_ant"]), 2),
             "meses_activos":   int(r["meses_activos"]),

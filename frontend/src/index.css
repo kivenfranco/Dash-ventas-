@@ -66,6 +66,65 @@
   pointer-events: none;
 }
 
+/* ── Light mode ──────────────────────────────────────────────────────────── */
+html.light-mode body {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+html.light-mode .card,
+html.light-mode .card-sm {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+/* Text */
+html.light-mode .text-slate-100  { color: #0f172a !important; }
+html.light-mode .text-slate-200  { color: #1e293b !important; }
+html.light-mode .text-slate-300  { color: #334155 !important; }
+html.light-mode .text-slate-400  { color: #64748b !important; }
+html.light-mode .text-slate-500  { color: #94a3b8 !important; }
+html.light-mode .text-slate-600  { color: #94a3b8 !important; }
+/* Backgrounds */
+html.light-mode .bg-surface-950  { background: #f1f5f9 !important; }
+html.light-mode .bg-surface-900  { background: #f8fafc !important; }
+html.light-mode .bg-surface-800  { background: #ffffff !important; }
+html.light-mode .bg-surface-700  { background: #e2e8f0 !important; }
+html.light-mode .bg-surface-700\/20 { background: rgba(226,232,240,0.4) !important; }
+/* Borders */
+html.light-mode .border-surface-700,
+html.light-mode .border-surface-700\/50,
+html.light-mode .border-surface-700\/30 { border-color: #e2e8f0 !important; }
+html.light-mode .border-surface-600 { border-color: #cbd5e1 !important; }
+/* Inputs */
+html.light-mode .input,
+html.light-mode .select {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+/* Header / nav */
+html.light-mode header,
+html.light-mode header * { --tw-border-opacity: 1; }
+html.light-mode header { background: #ffffff !important; border-color: #e2e8f0 !important; }
+html.light-mode header .text-slate-100 { color: #0f172a !important; }
+html.light-mode header .bg-surface-700,
+html.light-mode header .hover\:bg-surface-700:hover { background: #f1f5f9 !important; }
+html.light-mode header .bg-surface-900 { background: #f8fafc !important; }
+/* Scrollbar */
+html.light-mode ::-webkit-scrollbar-track { background: #f1f5f9; }
+html.light-mode ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+
+/* ── Recharts light mode ─────────────────────────────────────────────────── */
+html.light-mode .recharts-text tspan,
+html.light-mode .recharts-cartesian-axis-tick-value tspan { fill: #475569 !important; }
+html.light-mode .recharts-legend-item-text { color: #334155 !important; }
+html.light-mode .recharts-cartesian-grid-horizontal line,
+html.light-mode .recharts-cartesian-grid-vertical line  { stroke: #e2e8f0 !important; }
+html.light-mode .recharts-tooltip-wrapper .bg-surface-800 { background: #ffffff !important; }
+html.light-mode .recharts-tooltip-wrapper .border-surface-600 { border-color: #e2e8f0 !important; }
+html.light-mode .recharts-tooltip-wrapper .text-slate-200 { color: #1e293b !important; }
+html.light-mode .recharts-tooltip-wrapper .text-slate-400 { color: #64748b !important; }
+
 /* Recharts overrides */
 .recharts-tooltip-wrapper { outline: none; }
 .recharts-cartesian-grid-horizontal line,

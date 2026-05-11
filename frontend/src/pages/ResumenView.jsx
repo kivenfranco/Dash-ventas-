@@ -1,4 +1,5 @@
-import { useOutletContext } from 'react-router-dom'
+import { useOutletContext, useNavigate } from 'react-router-dom'
+import { useRef, useState, useEffect } from 'react'
 import { useFilters } from '../context/FilterContext'
 import { useData } from '../hooks/useData'
 import { api } from '../services/api'
@@ -6,7 +7,7 @@ import { KPICard } from '../components/kpis/KPICard'
 import { TimeSeriesChart } from '../components/charts/TimeSeriesChart'
 import { fmtCOP, fmtPct, fmtInt, cumpColor, cumpBg, pctColor, formatPeriod } from '../utils/format'
 import {
-  DollarSign, TrendingUp, TrendingDown, Target, Zap, Clock, Activity, Calendar, MapPin,
+  DollarSign, TrendingUp, TrendingDown, Target, Zap, Clock, Activity, Calendar, MapPin, Pin, PinOff,
 } from 'lucide-react'
 import {
   RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer,
@@ -119,16 +120,107 @@ function VentasDiariasTable({ data, loading }) {
   )
 }
 
+const ACCESOS_KEY     = 'bi_mis_accesos'
+const ACCESOS_DEFAULT = ['/rfm', '/clv', '/desempeno', '/cross-selling']
+const TODAS_PAGINAS   = [
+  { path: '/desempeno',     label: 'Desempeño Global' },
+  { path: '/vendedores',    label: 'Vendedores' },
+  { path: '/regiones',      label: 'Regiones' },
+  { path: '/clientes',      label: 'Clientes' },
+  { path: '/productos',     label: 'Productos' },
+  { path: '/presupuesto',   label: 'Presupuesto' },
+  { path: '/tendencia',     label: 'Tendencia' },
+  { path: '/clientes-pareto', label: 'Pareto Clientes' },
+  { path: '/rfm',           label: 'RFM' },
+  { path: '/abcxyz',        label: 'ABC/XYZ' },
+  { path: '/clv',           label: 'CLV' },
+  { path: '/churn',         label: 'Churn' },
+  { path: '/cross-selling', label: 'Cross-Selling' },
+  { path: '/agente',        label: 'Agente BI' },
+  { path: '/reporte',       label: 'Reporte PDF' },
+]
+
+function MisAccesos({ navigate }) {
+  const [pinned, setPinned] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(ACCESOS_KEY)) || ACCESOS_DEFAULT }
+    catch { return ACCESOS_DEFAULT }
+  })
+  const [editing, setEditing] = useState(false)
+
+  const saveAndSet = (next) => {
+    setPinned(next)
+    try { localStorage.setItem(ACCESOS_KEY, JSON.stringify(next)) } catch {}
+  }
+
+  const toggle = (path) => saveAndSet(
+    pinned.includes(path) ? pinned.filter(p => p !== path) : [...pinned, path]
+  )
+
+  const shown = TODAS_PAGINAS.filter(p => pinned.includes(p.path))
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold tracking-widest text-slate-500 uppercase">Mis Accesos</p>
+        <button
+          onClick={() => setEditing((v) => !v)}
+          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          {editing ? <PinOff size={11} /> : <Pin size={11} />}
+          {editing ? 'Listo' : 'Personalizar'}
+        </button>
+      </div>
+      {editing ? (
+        <div className="flex flex-wrap gap-2 p-3 bg-surface-800 rounded-xl border border-surface-700">
+          {TODAS_PAGINAS.map(({ path, label }) => {
+            const active = pinned.includes(path)
+            return (
+              <button
+                key={path}
+                onClick={() => toggle(path)}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                  active
+                    ? 'bg-brand-600/20 border-brand-500/50 text-brand-300'
+                    : 'bg-surface-700 border-surface-600 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {active ? '✓ ' : '+ '}{label}
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {shown.length === 0
+            ? <p className="text-xs text-slate-600">Haz clic en «Personalizar» para agregar accesos rápidos.</p>
+            : shown.map(({ path, label }) => (
+              <button
+                key={path}
+                onClick={() => navigate(path)}
+                className="text-xs px-4 py-2 bg-surface-800 hover:bg-surface-700 border border-surface-700 hover:border-surface-600 text-slate-300 hover:text-slate-100 rounded-lg transition-all"
+              >
+                {label}
+              </button>
+            ))
+          }
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function ResumenView() {
   const { refreshKey } = useOutletContext()
   const { filters } = useFilters()
+  const navigate = useNavigate()
 
   const { data: kpis,      loading: kL } = useData(() => api.kpis(filters),                    [filters, refreshKey])
   const { data: trends,    loading: tL } = useData(() => api.trends(filters),                  [filters, refreshKey])
   const { data: ppPlantas, loading: ppL} = useData(() => api.presupuesto(filters, 'linea_negocio', 20), [filters, refreshKey])
   const { data: ppRegiones,loading: prL} = useData(() => api.presupuesto(filters, 'region', 20),[filters, refreshKey])
   const { data: diarias,   loading: dL    } = useData(() => api.ventasDiarias(filters, 60),        [filters, refreshKey])
-  const { data: pvtaData,  loading: pvtaL } = useData(() => api.ventasDiariasPvta(filters, 120),   [filters, refreshKey])
+  const { data: pvtaData,  loading: pvtaL  } = useData(() => api.ventasDiariasPvta(filters, 120),                             [filters, refreshKey])
+  const { data: pvtaPP,   loading: pvtaPPL } = useData(() => api.pvtaPresupuesto(filters.ano, filters.mes), [filters.ano, filters.mes, refreshKey])
 
   const k = kpis || {}
   const period = formatPeriod(filters.ano, filters.mes, filters.mes_fin)
@@ -150,6 +242,9 @@ export function ResumenView() {
           </div>
         )}
       </div>
+
+      {/* === Mis Accesos === */}
+      <MisAccesos navigate={navigate} />
 
       {/* === Row 1: Gauges + días hábiles === */}
       <section>
@@ -201,7 +296,11 @@ export function ResumenView() {
           <h2 className="text-sm font-semibold text-slate-200">Análisis por Región</h2>
         </div>
         <p className="text-xs text-slate-500 mb-4">ventas netas vs presupuesto y cumplimiento — todas las regiones</p>
-        <RegionesChart data={ppRegiones?.data || []} loading={prL} />
+        <RegionesChart
+          data={ppRegiones?.data || []}
+          loading={prL}
+          onDrillDown={(region) => navigate('/desempeno', { state: { dimType: 'region', dimValue: region } })}
+        />
       </div>
 
       {/* === Row 4b: Region participation pie === */}
@@ -234,14 +333,28 @@ export function ResumenView() {
         <VentasDiariasTable data={diarias} loading={dL} />
       </div>
 
-      {/* === Row 7: PVTA daily pivot === */}
+      {/* === Row 7: PVTA daily pivot + presupuesto === */}
       <div className="card">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-1">
           <Calendar size={14} className="text-brand-400" />
           <h2 className="text-sm font-semibold text-slate-200">Ventas Diarias — Puntos de Venta</h2>
-          <span className="text-xs text-slate-500 ml-1">— PVTA Medellín, Cali, Norte y Bogotá</span>
         </div>
-        <PvtaDiariasTable data={pvtaData} loading={pvtaL} />
+        <p className="text-xs text-slate-500 mb-4">acumulado vs presupuesto y debe ser · PVTA Medellín, Cali, Norte y Bogotá</p>
+
+        {/* Budget cards + chart */}
+        <PvtaBudgetCards
+          pvtaData={pvtaData}
+          ppData={pvtaPP?.data || []}
+          loading={pvtaL || pvtaPPL}
+          diasTranscurridos={k.dias_habiles_transcurridos}
+          diasMes={k.dias_habiles_mes}
+        />
+
+        {/* Daily breakdown table */}
+        <div className="mt-6 pt-4 border-t border-surface-700/30">
+          <p className="text-xs font-semibold tracking-widest text-slate-500 uppercase mb-3">Detalle diario</p>
+          <PvtaDiariasTable data={pvtaData} loading={pvtaL} />
+        </div>
       </div>
     </div>
   )
@@ -327,7 +440,7 @@ function SectionLabel({ children }) {
 const C_VENTAS = '#000F9F'
 const C_PP     = '#F8A62B'
 
-function RegionesChart({ data, loading }) {
+function RegionesChart({ data, loading, onDrillDown }) {
   if (loading) return (
     <div className="space-y-2">
       {[...Array(6)].map((_, i) => <div key={i} className="animate-pulse h-8 bg-surface-700 rounded" />)}
@@ -402,7 +515,9 @@ function RegionesChart({ data, loading }) {
             />
             <Tooltip content={<RegTooltip />} cursor={{ fill: '#1f2937' }} />
             <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v, e) => <span style={{ color: e.color }}>{v}</span>} />
-            <Bar dataKey="ventas" name="Ventas Netas" fill={C_VENTAS} radius={[0, 3, 3, 0]} barSize={16}>
+            <Bar dataKey="ventas" name="Ventas Netas" fill={C_VENTAS} radius={[0, 3, 3, 0]} barSize={16}
+              onClick={onDrillDown ? (d) => onDrillDown(d.fullName) : undefined}
+              style={onDrillDown ? { cursor: 'pointer' } : undefined}>
               <LabelList
                 dataKey="cump"
                 content={({ x, y, width, height, value, index }) => {
@@ -485,6 +600,159 @@ function RegionPieChart({ data, loading }) {
     </div>
   )
 }
+// ── PVTA Presupuesto ──────────────────────────────────────────────────────────
+
+const PVTA_LABELS  = { pvta_medellin: 'PVTA MEDELLÍN', pvta_cali: 'PVTA CALI', pvtanorte: 'PVTA NORTE', pbogota: 'P. BOGOTÁ' }
+const PVTA_KEYS    = ['pvta_medellin', 'pvta_cali', 'pvtanorte', 'pbogota']
+const PVTA_COLORS2 = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6']
+
+function matchPvta(cod) {
+  const c = (cod || '').toUpperCase().replace(/\s/g, '')
+  if (/^PVTACALI/.test(c))  return 'pvta_cali'
+  if (/^PVTANORT/.test(c))  return 'pvtanorte'
+  if (/^PBOGOTA|^P\.BOGOTA/.test(c)) return 'pbogota'
+  if (/^PVTA/.test(c))      return 'pvta_medellin'
+  return null
+}
+
+function PvtaBudgetCards({ pvtaData, ppData, loading, diasTranscurridos, diasMes }) {
+  const rows = pvtaData?.data || []
+
+  const acum = {
+    pvta_medellin: rows.reduce((s, r) => s + (r.pvta_medellin || 0), 0),
+    pvta_cali:     rows.reduce((s, r) => s + (r.pvta_cali     || 0), 0),
+    pvtanorte:     rows.reduce((s, r) => s + (r.pvtanorte     || 0), 0),
+    pbogota:       rows.reduce((s, r) => s + (r.pbogota       || 0), 0),
+  }
+
+  const ppMap    = {}
+  const ppQtyMap = {}
+  ;(ppData || []).forEach((d) => {
+    const key = matchPvta(d.dimension)
+    if (key) {
+      ppMap[key]    = (ppMap[key]    || 0) + (d.presupuesto          || 0)
+      ppQtyMap[key] = (ppQtyMap[key] || 0) + (d.presupuesto_cantidad || 0)
+    }
+  })
+
+  const pace      = (diasMes || 0) > 0 ? (diasTranscurridos || 0) / diasMes : 0
+  const chartData = PVTA_KEYS.map((k, i) => {
+    const pp       = ppMap[k]    || 0
+    const ppQty    = ppQtyMap[k] || 0
+    const act      = acum[k]     || 0
+    const debe_ser = pp * pace
+    const cump     = pp > 0 ? (act / pp * 100) : null
+    return { name: PVTA_LABELS[k], act, pp, ppQty, debe_ser, cump, color: PVTA_COLORS2[i] }
+  })
+
+  const anyData = chartData.some((d) => d.act > 0)
+  const hasPP   = chartData.some((d) => d.pp > 0)
+
+  if (loading) return <div className="animate-pulse h-36 bg-surface-700 rounded-xl mb-4" />
+
+  return (
+    <>
+      {/* 4 KPI cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        {chartData.map((d, i) => (
+          <div key={i} className="bg-surface-800 border border-surface-700 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-semibold text-slate-400 truncate">{d.name}</p>
+              {d.cump != null && (
+                <span className={`text-xs font-bold ml-1 flex-shrink-0 ${cumpColor(d.cump)}`}>
+                  {fmtPct(d.cump, 1)}
+                </span>
+              )}
+            </div>
+            <p className="text-lg font-bold text-slate-100">{fmtCOP(d.act)}</p>
+            {d.pp > 0 ? (
+              <>
+                <div className="flex items-center justify-between mt-1 text-xs text-slate-500">
+                  <span>Debe ser</span>
+                  <span className="text-cyan-400 font-medium">{fmtCOP(d.debe_ser)}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>PP valor</span>
+                  <span className="text-amber-400">{fmtCOP(d.pp)}</span>
+                </div>
+                {d.ppQty > 0 && (
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>PP cantidad</span>
+                    <span className="text-violet-400">{new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(d.ppQty)}</span>
+                  </div>
+                )}
+                <div className="mt-2 w-full h-2 bg-surface-700 rounded-full overflow-hidden">
+                  <div className="h-2 rounded-full transition-all duration-700"
+                    style={{ width: `${Math.min(d.cump ?? 0, 100)}%`, background: d.color }} />
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-slate-600 mt-1">Sin presupuesto</p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Bar chart */}
+      {anyData && <PvtaBarChart data={chartData} hasPP={hasPP} />}
+    </>
+  )
+}
+
+function PvtaBarChart({ data, hasPP }) {
+
+  const PvtaTip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null
+    const d = data.find((x) => x.name === label)
+    return (
+      <div className="bg-surface-800 border border-surface-600 rounded-xl px-3 py-2.5 text-xs shadow-xl min-w-44">
+        <p className="text-slate-200 font-semibold mb-2">{label}</p>
+        <div className="space-y-1">
+          <div className="flex justify-between gap-4">
+            <span className="text-slate-400">Acumulado</span>
+            <span className="font-bold text-slate-100">{fmtCOP(d?.act)}</span>
+          </div>
+          {d?.debe_ser > 0 && (
+            <div className="flex justify-between gap-4">
+              <span className="text-slate-400">Debe ser</span>
+              <span className="text-cyan-400">{fmtCOP(d?.debe_ser)}</span>
+            </div>
+          )}
+          {d?.pp > 0 && (
+            <div className="flex justify-between gap-4">
+              <span className="text-slate-400">Presupuesto</span>
+              <span className="text-amber-400">{fmtCOP(d?.pp)}</span>
+            </div>
+          )}
+          {d?.cump != null && (
+            <div className="flex justify-between gap-4 pt-1 border-t border-surface-700">
+              <span className="text-slate-400">Cumplimiento</span>
+              <span className={`font-bold ${cumpColor(d.cump)}`}>{fmtPct(d.cump, 1)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={data} margin={{ top: 10, right: 20, left: 8, bottom: 4 }} barCategoryGap="30%" barGap={3}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+        <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={fmtCOP} width={65} />
+        <Tooltip content={<PvtaTip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+        <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v, e) => <span style={{ color: e.color }}>{v}</span>} />
+        <Bar dataKey="act" name="Acumulado" radius={[3, 3, 0, 0]} barSize={22}>
+          {data.map((d, i) => <Cell key={i} fill={d.color} />)}
+        </Bar>
+        {hasPP && <Bar dataKey="debe_ser" name="Debe Ser"     fill="#06b6d4" radius={[3, 3, 0, 0]} barSize={22} fillOpacity={0.65} />}
+        {hasPP && <Bar dataKey="pp"       name="Presupuesto"  fill="#F8A62B" radius={[3, 3, 0, 0]} barSize={22} fillOpacity={0.45} />}
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
 const C_ANT_PLANTA  = '#4b5563'
 
 function PlantaChart({ data, loading }) {

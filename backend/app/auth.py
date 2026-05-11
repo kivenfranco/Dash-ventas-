@@ -5,6 +5,8 @@ Roles: admin (sees all), vendedor (filtered to own CODIGO_VENDEDOR).
 """
 import json
 import logging
+import time
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -32,6 +34,26 @@ _PUBLIC = {
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+_DEFAULT_SECRET = "bi-ventas-secret-change-in-production-2024"
+
+# ── Simple in-memory rate limiter for login ───────────────────────────────────
+# Tracks failed attempts per IP: {ip: [timestamp, ...]}
+_login_attempts: dict = defaultdict(list)
+_MAX_ATTEMPTS  = 10   # max failed attempts in window
+_WINDOW_SECS   = 300  # 5-minute window
+
+
+def check_login_rate_limit(ip: str) -> bool:
+    """Returns True if the IP is allowed to attempt login, False if blocked."""
+    now = time.time()
+    # Evict old entries outside the window
+    _login_attempts[ip] = [t for t in _login_attempts[ip] if now - t < _WINDOW_SECS]
+    return len(_login_attempts[ip]) < _MAX_ATTEMPTS
+
+
+def record_failed_login(ip: str):
+    _login_attempts[ip].append(time.time())
+
 
 class UserInToken(BaseModel):
     id: int
@@ -57,6 +79,17 @@ def save_users(users: list):
     USERS_FILE.write_text(
         json.dumps({"users": users}, ensure_ascii=False, indent=2), "utf-8"
     )
+
+
+def check_security_config():
+    """Warn at startup if using insecure defaults."""
+    from .config import get_settings
+    cfg = get_settings()
+    if cfg.AUTH_SECRET_KEY == _DEFAULT_SECRET:
+        logger.warning(
+            "SEGURIDAD: AUTH_SECRET_KEY usa el valor por defecto. "
+            "Define AUTH_SECRET_KEY en backend/.env con una clave aleatoria fuerte."
+        )
 
 
 def setup_default_admin(default_password: str = "Alico2024!"):

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { FilterProvider } from '../../context/FilterContext'
 import { GlobalFilters } from '../filters/GlobalFilters'
@@ -10,39 +10,55 @@ import {
   Package, Users, BellRing, RefreshCw, Activity,
   Lightbulb, BotMessageSquare, LayoutGrid, Globe, Target, BookOpen, Rocket, Mail, LineChart, Ruler,
   Heart, Trophy, Zap, GitBranch, ShoppingCart, Sliders, FileText,
-  Search, LogOut, UserCircle, ChevronDown, BarChart2, GitMerge, UserX, PieChart,
+  Search, LogOut, UserCircle, ChevronDown, BarChart2, GitMerge, UserX, PieChart, Shield, Sun, Moon,
+  Layers, Thermometer, GitCompareArrows, ShieldAlert,
 } from 'lucide-react'
 
 const TABS = [
-  { to: '/',                label: 'Resumen',         icon: LayoutDashboard },
-  { to: '/tendencia',       label: 'Tendencia',        icon: TrendingUp      },
-  { to: '/regiones',        label: 'Regiones',         icon: MapPin          },
-  { to: '/vendedores',      label: 'Vendedores',       icon: Users2          },
-  { to: '/productos',       label: 'Productos',        icon: Package         },
-  { to: '/clientes',        label: 'Clientes',         icon: Users           },
-  { to: '/alertas',         label: 'Alertas',          icon: BellRing        },
-  { to: '/pronosticos',     label: 'Pronósticos',      icon: LineChart       },
-  { to: '/mercados',        label: 'Mercados',         icon: Globe           },
-  { to: '/hallazgos',       label: 'Hallazgos',        icon: Lightbulb       },
-  { to: '/oportunidades',   label: 'Oportunidades',    icon: Rocket          },
-  { to: '/agente',          label: 'Agente BI',        icon: BotMessageSquare },
-  { to: '/dimensiones',     label: 'Dimensiones',      icon: LayoutGrid      },
-  { to: '/presupuesto',     label: 'Presupuesto',      icon: Target          },
-  { to: '/diccionario',     label: 'Diccionario',      icon: BookOpen        },
-  { to: '/notificaciones',  label: 'Notificaciones',   icon: Mail            },
-  { to: '/comercializacion',label: 'Comercialización', icon: Ruler           },
-  { to: '/score-salud',     label: 'Score Salud',      icon: Heart           },
-  { to: '/ranking',         label: 'Ranking',          icon: Trophy          },
-  { to: '/anomalias',       label: 'Anomalías',        icon: Zap             },
-  { to: '/cohort',          label: 'Cohortes',         icon: GitBranch       },
-  { to: '/canasta',         label: 'Canasta',          icon: ShoppingCart    },
-  { to: '/simulador',       label: 'Simulador',        icon: Sliders         },
-  { to: '/reporte',         label: 'Reporte PDF',      icon: FileText        },
-  { to: '/rfm',             label: 'RFM',              icon: PieChart        },
-  { to: '/abcxyz',          label: 'ABC/XYZ',          icon: BarChart2       },
-  { to: '/clv',             label: 'CLV',              icon: Activity        },
-  { to: '/cross-selling',   label: 'Cross-Selling',    icon: GitMerge        },
-  { to: '/churn',           label: 'Churn',            icon: UserX           },
+  // ── 1. Monitoreo diario ───────────────────────────────────────────────────
+  { to: '/',               label: 'Resumen',          icon: LayoutDashboard  },
+  { to: '/tendencia',      label: 'Tendencia',         icon: TrendingUp       },
+  { to: '/alertas',        label: 'Alertas',           icon: BellRing         },
+  { to: '/anomalias',      label: 'Anomalías',         icon: Zap              },
+  { to: '/hallazgos',      label: 'Hallazgos',         icon: Lightbulb        },
+  { to: '/oportunidades',  label: 'Oportunidades',     icon: Rocket           },
+  // ── 2. Análisis dimensional ───────────────────────────────────────────────
+  { to: '/desempeno',      label: 'Desempeño Global',  icon: Activity         },
+  { to: '/vendedores',     label: 'Vendedores',        icon: Users2           },
+  { to: '/regiones',       label: 'Regiones',          icon: MapPin           },
+  { to: '/clientes',       label: 'Clientes',          icon: Users            },
+  { to: '/productos',      label: 'Productos',         icon: Package          },
+  { to: '/mercados',       label: 'Mercados',          icon: Globe            },
+  { to: '/dimensiones',    label: 'Dimensiones',       icon: LayoutGrid       },
+  // ── 3. Financiero y presupuesto ───────────────────────────────────────────
+  { to: '/presupuesto',    label: 'Presupuesto',       icon: Target           },
+  { to: '/pvm',            label: 'PVM',               icon: Layers           },
+  { to: '/estacionalidad', label: 'Estacionalidad',    icon: Thermometer      },
+  { to: '/pronosticos',    label: 'Pronósticos',       icon: LineChart        },
+  { to: '/comercializacion', label: 'Comercialización', icon: Ruler           },
+  // ── 4. Análisis avanzado de clientes ─────────────────────────────────────
+  { to: '/clientes-pareto', label: 'Pareto Clientes',  icon: PieChart         },
+  { to: '/rfm',            label: 'RFM',               icon: PieChart         },
+  { to: '/abcxyz',         label: 'ABC/XYZ',           icon: BarChart2        },
+  { to: '/clv',            label: 'CLV',               icon: Activity         },
+  { to: '/churn',          label: 'Churn',             icon: UserX            },
+  { to: '/riesgo-cliente', label: 'Riesgo Cliente',    icon: ShieldAlert      },
+  { to: '/score-salud',    label: 'Score Salud',       icon: Heart            },
+  { to: '/cohort',         label: 'Cohortes',          icon: GitBranch        },
+  { to: '/migracion-rfm',  label: 'Migración RFM',     icon: GitCompareArrows },
+  // ── 5. Análisis de producto y canasta ─────────────────────────────────────
+  { to: '/kpis-producto',  label: 'KPIs Producto',     icon: BarChart2        },
+  { to: '/ranking',        label: 'Ranking',           icon: Trophy           },
+  { to: '/canasta',        label: 'Canasta',           icon: ShoppingCart     },
+  { to: '/cross-selling',  label: 'Cross-Selling',     icon: GitMerge         },
+  // ── 6. Herramientas ───────────────────────────────────────────────────────
+  { to: '/simulador',      label: 'Simulador',         icon: Sliders          },
+  { to: '/agente',         label: 'Agente BI',         icon: BotMessageSquare },
+  { to: '/notificaciones', label: 'Notificaciones',    icon: Mail             },
+  { to: '/reporte',        label: 'Reporte PDF',       icon: FileText         },
+  { to: '/diccionario',    label: 'Diccionario',       icon: BookOpen         },
+  // ── 7. Sistema ────────────────────────────────────────────────────────────
+  { to: '/admin',          label: 'Administración',    icon: Shield, adminOnly: true },
 ]
 
 function SearchBar() {
@@ -165,8 +181,24 @@ function UserMenu() {
   )
 }
 
+const LIGHT_KEY = 'bi_light_mode'
+
+function useLightMode() {
+  const [light, setLight] = useState(() => localStorage.getItem(LIGHT_KEY) === 'true')
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('light-mode', light)
+    localStorage.setItem(LIGHT_KEY, String(light))
+  }, [light])
+
+  return [light, useCallback(() => setLight((v) => !v), [])]
+}
+
 function TabBar({ onRefresh, refreshing }) {
-  const location = useLocation()
+  const location      = useLocation()
+  const { user }      = useAuth()
+  const [light, toggleLight] = useLightMode()
+  const visibleTabs   = TABS.filter(t => !t.adminOnly || user?.rol === 'admin')
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-surface-900 border-b border-surface-700">
       {/* Brand row */}
@@ -180,6 +212,13 @@ function TabBar({ onRefresh, refreshing }) {
           <SearchBar />
           <span className="text-xs text-slate-500">{new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
           <button
+            onClick={toggleLight}
+            title={light ? 'Modo oscuro' : 'Modo claro'}
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-100 px-2.5 py-1.5 rounded-lg hover:bg-surface-700 transition-colors"
+          >
+            {light ? <Moon size={14} /> : <Sun size={14} />}
+          </button>
+          <button
             onClick={onRefresh}
             className={`flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-100 px-3 py-1.5 rounded-lg hover:bg-surface-700 transition-colors ${refreshing ? 'opacity-60' : ''}`}
           >
@@ -191,7 +230,7 @@ function TabBar({ onRefresh, refreshing }) {
       </div>
       {/* Tabs row */}
       <div className="flex items-center gap-1 px-4 h-11 overflow-x-auto scrollbar-none">
-        {TABS.map(({ to, label, icon: Icon }) => {
+        {visibleTabs.map(({ to, label, icon: Icon }) => {
           const active = to === '/'
             ? location.pathname === '/'
             : location.pathname.startsWith(to)

@@ -19,18 +19,12 @@ logger = logging.getLogger(__name__)
 _VALID_GROUPS = "^(descripcion|estructura|linea_negocio|dispositivo|tipo_producto)$"
 
 _DIM_MAP = {
-    "descripcion":    ("dp.DESCRIPCION",                                        "parte"),
-    "estructura":     ("COALESCE(dp.ESTRUCTURA, 'Sin Clasificar')",             "parte"),
-    "linea_negocio":  ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",        "grupo"),
-    "dispositivo":    ("COALESCE(dp.DISPOSITIVO, 'Sin Clasificar')",            "parte"),
-    "tipo_producto":  ("COALESCE(dp.TIPO_PRODUCTO, 'Sin Clasificar')",          "parte"),
+    "descripcion":    ("COALESCE(dgc.NOMBRE_GRUPO, dgp.LINEA_NEGOCIO, fv.CODIGO_PRODUCTO)", "grupo_com"),
+    "estructura":     ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",                     "grupo"),
+    "linea_negocio":  ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",                     "grupo"),
+    "dispositivo":    ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",                     "grupo"),
+    "tipo_producto":  ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",                     "grupo"),
 }
-
-_DP_SUB = (
-    "(SELECT CODIGO_PRODUCTO, DESCRIPCION, ESTRUCTURA, DISPOSITIVO, TIPO_PRODUCTO "
-    "FROM {dim_parte} "
-    "QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY ESTRUCTURA NULLS LAST, CODIGO_PRODUCTO) = 1)"
-)
 
 
 def _query_mes(cfg, dim_col, joins_str, ano, mes, top_n, params_extra=None):
@@ -69,15 +63,12 @@ def get_ranking(
         return hit
 
     dim_col, dim_src = _DIM_MAP[group_by]
-    dp_sub = _DP_SUB.format(dim_parte=cfg.TM('DIM_PARTE'))
 
     joins_parts = []
-    if dim_src == "parte":
-        joins_parts.append(f"LEFT JOIN {dp_sub} dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO")
-    if dim_src == "grupo":
+    if dim_src in ("grupo", "grupo_com"):
         joins_parts.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO")
-    if dim_src == "parte":
-        joins_parts = [f"LEFT JOIN {dp_sub} dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO"]
+    if dim_src == "grupo_com":
+        joins_parts.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO")
 
     joins_str = " ".join(joins_parts)
 

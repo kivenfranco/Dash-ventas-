@@ -91,18 +91,25 @@ def _query_vendedores_con_alertas(ano: int, mes: Optional[int]) -> list[dict]:
     result = []
     for cod in codigos:
         sql_info = f"""
-            SELECT dv.NOMBRE,
-                   FIRST_VALUE(dd.DESCRIPCION_REGION) OVER (
-                       PARTITION BY fv.CODIGO_VENDEDOR
-                       ORDER BY COUNT(*) OVER (PARTITION BY fv.CODIGO_VENDEDOR, dd.DESCRIPCION_REGION) DESC
-                   ) AS region_principal
+            WITH vr AS (
+                SELECT fv.CODIGO_VENDEDOR,
+                       dd.DESCRIPCION_REGION,
+                       COUNT(*) AS freq
+                FROM {cfg.T('FACT_VENTAS')} fv
+                LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY
+                WHERE fv.CODIGO_VENDEDOR = '{cod}'
+                  AND fv.ANO_FISCAL = {ano}
+                  AND dd.DESCRIPCION_REGION IS NOT NULL
+                GROUP BY fv.CODIGO_VENDEDOR, dd.DESCRIPCION_REGION
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY fv.CODIGO_VENDEDOR ORDER BY freq DESC) = 1
+            )
+            SELECT MAX(dv.NOMBRE) AS nombre, vr.DESCRIPCION_REGION AS region_principal
             FROM {cfg.T('FACT_VENTAS')} fv
             LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv ON fv.CODIGO_VENDEDOR = dv.CODIGO_VENDEDOR
-            LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY
-            WHERE fv.CODIGO_VENDEDOR = '{cod}'
-              AND fv.ANO_FISCAL = {ano}
-              AND dd.DESCRIPCION_REGION IS NOT NULL
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY fv.CODIGO_VENDEDOR ORDER BY COUNT(*) OVER (PARTITION BY fv.CODIGO_VENDEDOR, dd.DESCRIPCION_REGION) DESC) = 1
+            LEFT JOIN vr ON fv.CODIGO_VENDEDOR = vr.CODIGO_VENDEDOR
+            WHERE fv.CODIGO_VENDEDOR = '{cod}' AND fv.ANO_FISCAL = {ano}
+            GROUP BY vr.DESCRIPCION_REGION
+            LIMIT 1
         """
         try:
             df_info = connector.query(sql_info)

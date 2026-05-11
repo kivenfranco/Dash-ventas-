@@ -40,20 +40,16 @@ def get_canasta(
     if excl_pvta:
         pvta_cond = "AND (UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%' OR fv.CODIGO_VENDEDOR IS NULL)"
 
-    dp_sub = (
-        f"(SELECT CODIGO_PRODUCTO, DESCRIPCION FROM {cfg.TM('DIM_PARTE')} "
-        f"QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO "
-        f"ORDER BY DESCRIPCION NULLS LAST, CODIGO_PRODUCTO) = 1)"
-    )
-
     sql = f"""
         SELECT
             CONCAT(COALESCE(fv.CODIGO_VENDEDOR, 'ANONIMO'), '|',
-                   fv.ANO_FISCAL, '|', fv.PERIODO_FISCAL)     AS basket_id,
-            fv.CODIGO_PRODUCTO                                  AS codigo,
-            COALESCE(dp.DESCRIPCION, fv.CODIGO_PRODUCTO)        AS descripcion
+                   fv.ANO_FISCAL, '|', fv.PERIODO_FISCAL)              AS basket_id,
+            fv.CODIGO_PRODUCTO                                          AS codigo,
+            COALESCE(dgc.NOMBRE_GRUPO, dgp.LINEA_NEGOCIO,
+                     fv.CODIGO_PRODUCTO)                                AS descripcion
         FROM {cfg.T('FACT_VENTAS')} fv
-        LEFT JOIN {dp_sub} dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO
+        LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO
+        LEFT JOIN {cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO
         WHERE fv.ANO_FISCAL = {ano}
           AND fv.PERIODO_FISCAL <= {mes_actual}
           {pvta_cond}

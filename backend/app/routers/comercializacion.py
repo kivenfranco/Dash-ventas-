@@ -81,13 +81,6 @@ def _sanitize(obj):
     return obj
 
 
-def _dp_sub(cfg) -> str:
-    return (
-        f"(SELECT CODIGO_PRODUCTO, DESCRIPCION, UNIDAD_MEDIDA "
-        f"FROM {cfg.TM('DIM_PARTE')} "
-        f"QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO "
-        f"ORDER BY UNIDAD_MEDIDA NULLS LAST, CODIGO_PRODUCTO) = 1)"
-    )
 
 
 def _build_sql(cfg, anos: list[int], mes=None, mes_fin=None, mes_max=None, excl_mes_actual=False):
@@ -119,15 +112,14 @@ def _build_sql(cfg, anos: list[int], mes=None, mes_fin=None, mes_max=None, excl_
     where = "WHERE " + " AND ".join(cond)
     sql = f"""
         SELECT
-            fv.ANO_FISCAL                              AS ano,
-            fv.PERIODO_FISCAL                          AS mes,
-            fv.CODIGO_PRODUCTO                         AS codigo_producto,
-            COALESCE(dp.DESCRIPCION, fv.CODIGO_PRODUCTO) AS producto,
-            COALESCE(dp.UNIDAD_MEDIDA, 'SIN_UOM')      AS uom,
-            COALESCE(SUM(fv.CANTIDAD),     0)           AS cantidad,
-            COALESCE(SUM(fv.VENTAS_NETAS), 0)           AS ventas_netas
+            fv.ANO_FISCAL                                   AS ano,
+            fv.PERIODO_FISCAL                               AS mes,
+            fv.CODIGO_PRODUCTO                              AS codigo_producto,
+            fv.CODIGO_PRODUCTO                              AS producto,
+            COALESCE(fv.UNIDAD_MEDIDA_VENTA, 'SIN_UOM')    AS uom,
+            COALESCE(SUM(fv.CANTIDAD),     0)               AS cantidad,
+            COALESCE(SUM(fv.VENTAS_NETAS), 0)               AS ventas_netas
         FROM {cfg.T('FACT_VENTAS')} fv
-        LEFT JOIN {_dp_sub(cfg)} dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO
         LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO
         {where}
         GROUP BY 1, 2, 3, 4, 5

@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from ..auth import (
     authenticate_user, create_token, hash_password,
     load_users, save_users, get_user,
+    check_login_rate_limit, record_failed_login,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
@@ -53,9 +54,16 @@ def _require_admin(request: Request):
 
 
 @router.post("/login")
-def login(body: LoginBody):
+def login(body: LoginBody, request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_login_rate_limit(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Demasiados intentos fallidos. Espera 5 minutos antes de intentar de nuevo.",
+        )
     user = authenticate_user(body.email, body.password)
     if not user:
+        record_failed_login(client_ip)
         raise HTTPException(status_code=401, detail="Credenciales incorrectas.")
     token = create_token(user)
     return {

@@ -1,5 +1,5 @@
 """
-GET /api/rfm — Segmentación RFM de CODIGO_VENDEDOR.
+GET /api/rfm — Segmentación RFM por cliente.
 R: recencia  — meses desde última compra (1=bueno→5)
 F: frecuencia — meses activos en el período (5=bueno)
 M: monetario  — ventas netas totales (5=bueno)
@@ -58,40 +58,48 @@ _SEGMENT_ORDER = [
 def get_rfm(
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
+    mes_fin: Optional[int] = Query(None, ge=1, le=12),
     excl_pvta: bool = Query(True),
     top_n: int = Query(500, ge=10, le=2000),
 ):
     cfg = get_settings()
-    key = f"rfm_seg:{ano}:{mes}:{excl_pvta}:{top_n}"
+    key = f"rfm_seg:{ano}:{mes}:{mes_fin}:{excl_pvta}:{top_n}"
     if (hit := cache.get(key)):
         return hit
 
     today = date.today()
     mes_max = today.month if (not mes and ano == today.year) else None
 
-    conds: list = ["fv.ANO_FISCAL = %s"]
-    params: list = [ano]
-    if mes:
-        conds.append("fv.PERIODO_FISCAL = %s"); params.append(mes)
+    where_parts: list = [f"fv.ANO_FISCAL = {ano}"]
+    if mes and mes_fin and mes_fin > mes:
+        where_parts.append(f"fv.PERIODO_FISCAL BETWEEN {mes} AND {mes_fin}")
+    elif mes:
+        where_parts.append(f"fv.PERIODO_FISCAL = {mes}")
     elif mes_max:
-        conds.append("fv.PERIODO_FISCAL <= %s"); params.append(mes_max)
+        where_parts.append(f"fv.PERIODO_FISCAL <= {mes_max}")
+    
     if excl_pvta:
-        conds.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%' OR fv.CODIGO_VENDEDOR IS NULL)")
+        where_parts.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%' OR fv.CODIGO_VENDEDOR IS NULL)")
+
+    where_clause = " AND ".join(where_parts)
 
     sql = f"""
         SELECT
-            fv.CODIGO_VENDEDOR                       AS vendedor,
-            COALESCE(SUM(fv.VENTAS_NETAS), 0)         AS ventas_netas,
+            fv.NUMERO_CLIENTE                                         AS numero_cliente,
+            MAX(fv.ID_CLIENTE)                                        AS id_cliente,
+            COALESCE(MAX(dc.NOMBRE), TO_VARCHAR(fv.NUMERO_CLIENTE))   AS nombre_cliente,
+            COALESCE(SUM(fv.VENTAS_NETAS), 0)                          AS ventas_netas,
             COUNT(DISTINCT fv.PERIODO_FISCAL)          AS meses_activos,
             MAX(fv.PERIODO_FISCAL)                     AS ultimo_mes
         FROM {cfg.T('FACT_VENTAS')} fv
-        WHERE {' AND '.join(conds)}
-        GROUP BY 1
+        LEFT JOIN {cfg.TM('DIM_CLIENTE')} dc ON fv.NUMERO_CLIENTE = dc.NUMERO_CLIENTE
+        WHERE {where_clause}
+        GROUP BY fv.NUMERO_CLIENTE
         ORDER BY ventas_netas DESC
         LIMIT {top_n}
     """
     try:
-        df = connector.query(sql, params)
+        df = connector.query(sql)
         df.columns = [c.lower() for c in df.columns]
     except Exception as exc:
         logger.error("RFM error: %s", exc)
@@ -100,7 +108,7 @@ def get_rfm(
     if df.empty:
         return {"ano": ano, "mes": mes, "data": [], "resumen": {s: 0 for s in _SEGMENT_ORDER}}
 
-    ref_mes = mes or mes_max or 12
+    ref_mes = mes_fin or mes or mes_max or 12
     df["ventas_netas"]  = pd.to_numeric(df["ventas_netas"],  errors="coerce").fillna(0)
     df["meses_activos"] = pd.to_numeric(df["meses_activos"], errors="coerce").fillna(0)
     df["ultimo_mes"]    = pd.to_numeric(df["ultimo_mes"],    errors="coerce").fillna(0)
@@ -118,22 +126,24 @@ def get_rfm(
 
     records = [
         {
-            "vendedor":      str(r["vendedor"] or "—"),
-            "ventas_netas":  round(float(r["ventas_netas"]), 2),
-            "meses_activos": int(r["meses_activos"]),
-            "ultimo_mes":    int(r["ultimo_mes"]),
-            "recencia_gap":  int(r["recencia_gap"]),
-            "score_r":       int(r["score_r"]),
-            "score_f":       int(r["score_f"]),
-            "score_m":       int(r["score_m"]),
-            "score_rfm":     int(r["score_rfm"]),
-            "segmento":      r["segmento"],
+            "numero_cliente": str(r["numero_cliente"] or "—"),
+            "id_cliente":     str(r["id_cliente"]) if pd.notna(r.get("id_cliente")) else None,
+            "nombre_cliente": str(r.get("nombre_cliente") or r["numero_cliente"]),
+            "ventas_netas":   round(float(r["ventas_netas"]), 2),
+            "meses_activos":  int(r["meses_activos"]),
+            "ultimo_mes":     int(r["ultimo_mes"]),
+            "recencia_gap":   int(r["recencia_gap"]),
+            "score_r":        int(r["score_r"]),
+            "score_f":        int(r["score_f"]),
+            "score_m":        int(r["score_m"]),
+            "score_rfm":      int(r["score_rfm"]),
+            "segmento":       r["segmento"],
         }
         for _, r in df.iterrows()
     ]
 
     result = {
-        "ano": ano, "mes": mes, "data": records,
+        "ano": ano, "mes": mes, "mes_fin": mes_fin, "data": records,
         "resumen": {s: segment_counts.get(s, 0) for s in _SEGMENT_ORDER},
     }
     cache.set(key, result)

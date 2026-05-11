@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useFilters } from '../context/FilterContext'
 import { api } from '../services/api'
+import { Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 function LiftBadge({ lift }) {
   const cls =
@@ -18,28 +20,44 @@ export function CrossSellingView() {
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
   const [tab, setTab]             = useState('reglas')
-  const [vendedor, setVendedor]   = useState('')
+  const [cliente, setCliente]     = useState('')
   const [recs, setRecs]           = useState(null)
   const [recLoading, setRL]       = useState(false)
 
   useEffect(() => {
     setLoading(true)
     setError('')
-    api.crossSelling(filters.ano, filters.mes)
+    api.crossSelling(filters.ano, filters.mes, 50, 0.02, filters.mes_fin)
       .then((d) => setRules(d.data || []))
       .catch((e) => setError(e?.response?.data?.detail || 'Error al cargar'))
       .finally(() => setLoading(false))
-  }, [filters.ano, filters.mes, refreshKey])
+  }, [filters.ano, filters.mes, filters.mes_fin, refreshKey])
 
-  const buscarVendedor = async () => {
-    if (!vendedor.trim()) return
+  const buscarCliente = async () => {
+    if (!cliente.trim()) return
     setRL(true)
     try {
-      const d = await api.crossSellingVendedor(vendedor.trim(), filters.ano, filters.mes)
+      const d = await api.crossSellingCliente(cliente.trim(), filters.ano, filters.mes, filters.mes_fin)
       setRecs(d)
     } catch (e) {
-      setRecs({ vendedor: vendedor, recomendaciones: [], error: e?.response?.data?.detail })
+      setRecs({ cliente: cliente, recomendaciones: [], error: e?.response?.data?.detail })
     } finally { setRL(false) }
+  }
+
+  const exportXlsx = () => {
+    if (!rules.length) return
+    const ws = XLSX.utils.json_to_sheet(rules.map(r => ({
+      'Antecedente (código)': r.antecedente,
+      'Antecedente (desc)': r.desc_ante,
+      'Consecuente (código)': r.consecuente,
+      'Consecuente (desc)': r.desc_cons,
+      'Soporte': (r.soporte * 100).toFixed(1) + '%',
+      'Confianza': (r.confianza * 100).toFixed(1) + '%',
+      'Lift': r.lift.toFixed(2),
+    })))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'CrossSelling')
+    XLSX.writeFile(wb, `cross-selling-${filters.ano}.xlsx`)
   }
 
   return (
@@ -49,8 +67,8 @@ export function CrossSellingView() {
         <p className="text-xs text-slate-400 mt-0.5">Asociaciones de productos — lift &gt; 1 indica co-compra frecuente — {filters.ano}</p>
       </div>
 
-      <div className="flex gap-2">
-        {['reglas', 'vendedor'].map((t) => (
+      <div className="flex gap-2 items-center">
+        {['reglas', 'cliente'].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -58,9 +76,17 @@ export function CrossSellingView() {
               tab === t ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30' : 'text-slate-400 hover:text-slate-100 hover:bg-surface-700'
             }`}
           >
-            {t === 'reglas' ? 'Reglas globales' : 'Por vendedor'}
+            {t === 'reglas' ? 'Reglas globales' : 'Por cliente'}
           </button>
         ))}
+        {tab === 'reglas' && rules.length > 0 && (
+          <button
+            onClick={exportXlsx}
+            className="ml-auto flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-100 px-3 py-1.5 rounded-lg hover:bg-surface-700 transition-colors"
+          >
+            <Download size={13} /> Excel
+          </button>
+        )}
       </div>
 
       {loading && <p className="text-slate-400 text-sm">Cargando…</p>}
@@ -101,18 +127,18 @@ export function CrossSellingView() {
         </div>
       )}
 
-      {tab === 'vendedor' && (
+      {tab === 'cliente' && (
         <div className="space-y-4">
           <div className="flex gap-3">
             <input
-              value={vendedor}
-              onChange={(e) => setVendedor(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && buscarVendedor()}
-              placeholder="Código vendedor (ej. V001)"
+              value={cliente}
+              onChange={(e) => setCliente(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && buscarCliente()}
+              placeholder="Número cliente (ej. 12345)"
               className="bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 w-64"
             />
             <button
-              onClick={buscarVendedor}
+              onClick={buscarCliente}
               disabled={recLoading}
               className="bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
             >
@@ -123,12 +149,12 @@ export function CrossSellingView() {
           {recs && (
             <div className="bg-surface-900 border border-surface-700 rounded-xl p-4">
               <p className="text-sm font-medium text-slate-200 mb-1">
-                Vendedor: <span className="font-mono text-brand-300">{recs.vendedor}</span>
+                Cliente: <span className="font-mono text-brand-300">{recs.cliente}</span>
                 <span className="text-slate-500 text-xs ml-2">— {recs.productos_actuales} productos actuales</span>
               </p>
               {recs.error && <p className="text-red-400 text-xs mt-2">{recs.error}</p>}
               {(!recs.recomendaciones || recs.recomendaciones.length === 0) && !recs.error && (
-                <p className="text-slate-400 text-sm mt-2">Sin recomendaciones para este vendedor.</p>
+                <p className="text-slate-400 text-sm mt-2">Sin recomendaciones para este cliente.</p>
               )}
               {recs.recomendaciones?.length > 0 && (
                 <table className="w-full text-xs mt-3">

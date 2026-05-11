@@ -68,22 +68,34 @@ def get_vendedores(ano: int = Query(default_factory=lambda: date.today().year)):
     """Lista todos los CODIGO_VENDEDOR activos del DB con nombre y estado de mapeo."""
     cfg = get_settings()
     sql = f"""
-        SELECT fv.CODIGO_VENDEDOR,
-               MAX(dv.NOMBRE) AS nombre,
-               SUM(fv.VENTAS_NETAS) AS ventas_totales,
-               FIRST_VALUE(dd.DESCRIPCION_REGION) OVER (
-                   PARTITION BY fv.CODIGO_VENDEDOR
-                   ORDER BY COUNT(*) OVER (PARTITION BY fv.CODIGO_VENDEDOR, dd.DESCRIPCION_REGION) DESC
-               ) AS region_principal
-        FROM {cfg.T('FACT_VENTAS')} fv
-        LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv ON fv.CODIGO_VENDEDOR = dv.CODIGO_VENDEDOR
-        LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY
-        WHERE fv.ANO_FISCAL = {ano}
-          AND UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%'
-          AND UPPER(fv.CODIGO_VENDEDOR) != 'PBOGOTA'
-          AND dd.DESCRIPCION_REGION IS NOT NULL
-        GROUP BY fv.CODIGO_VENDEDOR
-        QUALIFY ROW_NUMBER() OVER (PARTITION BY fv.CODIGO_VENDEDOR ORDER BY COUNT(*) OVER (PARTITION BY fv.CODIGO_VENDEDOR, dd.DESCRIPCION_REGION) DESC) = 1
+        WITH vd AS (
+            SELECT fv.CODIGO_VENDEDOR,
+                   MAX(dv.NOMBRE)        AS nombre,
+                   SUM(fv.VENTAS_NETAS)  AS ventas_totales
+            FROM {cfg.T('FACT_VENTAS')} fv
+            LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv ON fv.CODIGO_VENDEDOR = dv.CODIGO_VENDEDOR
+            WHERE fv.ANO_FISCAL = {ano}
+              AND UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%'
+              AND UPPER(fv.CODIGO_VENDEDOR) != 'PBOGOTA'
+            GROUP BY fv.CODIGO_VENDEDOR
+        ),
+        vr AS (
+            SELECT fv.CODIGO_VENDEDOR,
+                   dd.DESCRIPCION_REGION,
+                   COUNT(*) AS freq
+            FROM {cfg.T('FACT_VENTAS')} fv
+            LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY
+            WHERE fv.ANO_FISCAL = {ano}
+              AND dd.DESCRIPCION_REGION IS NOT NULL
+            GROUP BY fv.CODIGO_VENDEDOR, dd.DESCRIPCION_REGION
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY fv.CODIGO_VENDEDOR ORDER BY freq DESC) = 1
+        )
+        SELECT vd.CODIGO_VENDEDOR,
+               vd.nombre,
+               vd.ventas_totales,
+               vr.DESCRIPCION_REGION AS region_principal
+        FROM vd
+        LEFT JOIN vr ON vd.CODIGO_VENDEDOR = vr.CODIGO_VENDEDOR
         ORDER BY ventas_totales DESC
     """
     try:

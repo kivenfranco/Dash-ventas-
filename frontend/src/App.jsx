@@ -25,12 +25,20 @@ import { AnomalíasView }         from './pages/AnomalíasView'
 import { CohortView }            from './pages/CohortView'
 import { CanastaView }           from './pages/CanastaView'
 import { SimuladorView }         from './pages/SimuladorView'
+import { ClientesParetoView }    from './pages/ClientesParetoView'
 import { ReporteView }           from './pages/ReporteView'
 import { RFMView }               from './pages/RFMView'
 import { ABCXYZView }            from './pages/ABCXYZView'
 import { CLVView }               from './pages/CLVView'
 import { CrossSellingView }      from './pages/CrossSellingView'
 import { ChurnView }             from './pages/ChurnView'
+import { DesempenoView }         from './pages/DesempenoView'
+import { AdminView }             from './pages/AdminView'
+import { ProductoKPIsView }      from './pages/ProductoKPIsView'
+import { PVMView }               from './pages/PVMView'
+import { EstacionalidadView }    from './pages/EstacionalidadView'
+import { MigracionRFMView }      from './pages/MigracionRFMView'
+import { RiesgoClienteView }     from './pages/RiesgoClienteView'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -81,12 +89,20 @@ export default function App() {
           <Route path="cohort"             element={<CohortView />}             />
           <Route path="canasta"            element={<CanastaView />}            />
           <Route path="simulador"          element={<SimuladorView />}          />
+          <Route path="clientes-pareto"    element={<ClientesParetoView />}     />
           <Route path="reporte"            element={<ReporteView />}            />
           <Route path="rfm"                element={<RFMView />}                />
           <Route path="abcxyz"             element={<ABCXYZView />}             />
           <Route path="clv"                element={<CLVView />}                />
           <Route path="cross-selling"      element={<CrossSellingView />}       />
           <Route path="churn"              element={<ChurnView />}              />
+          <Route path="desempeno"          element={<DesempenoView />}          />
+          <Route path="admin"              element={<AdminView />}              />
+          <Route path="kpis-producto"    element={<ProductoKPIsView />}       />
+          <Route path="pvm"              element={<PVMView />}                />
+          <Route path="estacionalidad"   element={<EstacionalidadView />}     />
+          <Route path="migracion-rfm"    element={<MigracionRFMView />}       />
+          <Route path="riesgo-cliente"   element={<RiesgoClienteView />}      />
         </Route>
       </Routes>
     </AuthProvider>

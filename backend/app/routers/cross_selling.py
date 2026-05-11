@@ -1,6 +1,6 @@
 """
-GET /api/cross-selling              — reglas de asociación globales (top lift)
-GET /api/cross-selling/{vendedor}   — recomendaciones para un CODIGO_VENDEDOR específico
+GET /api/cross-selling              — reglas de asociación globales (top lift) por cliente
+GET /api/cross-selling/{numero_cliente}   — recomendaciones para un cliente específico
 """
 import logging
 from datetime import date
@@ -17,27 +17,27 @@ router = APIRouter(prefix="/api/cross-selling", tags=["CrossSelling"])
 logger = logging.getLogger(__name__)
 
 
-def _build_rules(cfg, ano: int, mes: Optional[int], top_n: int, min_soporte: float):
+def _build_rules(cfg, ano: int, mes: Optional[int], top_n: int, min_soporte: float, mes_fin: Optional[int] = None):
     """Devuelve DataFrame con reglas antecedente→consecuente y métricas lift."""
-    conds: list = ["fv.ANO_FISCAL = %s"]
-    params: list = [ano]
-    if mes:
-        conds.append("fv.PERIODO_FISCAL = %s"); params.append(mes)
+    where_parts: list = [f"fv.ANO_FISCAL = {ano}"]
+    if mes and mes_fin and mes_fin > mes:
+        where_parts.append(f"fv.PERIODO_FISCAL BETWEEN {mes} AND {mes_fin}")
+    elif mes:
+        where_parts.append(f"fv.PERIODO_FISCAL = {mes}")
+    where_clause = " AND ".join(where_parts)
 
     sql = f"""
         SELECT
-            fv.NUMERO_DOCUMENTO                                      AS basket_id,
-            fv.CODIGO_PRODUCTO                                       AS codigo,
-            dp.DESCRIPCION                                           AS descripcion
+            fv.NUMERO_CLIENTE || '-' || fv.NUMERO_FACTURA          AS basket_id,
+            fv.CODIGO_PRODUCTO                                      AS codigo,
+            COALESCE(dgc.NOMBRE_GRUPO, dgp.LINEA_NEGOCIO,
+                     fv.CODIGO_PRODUCTO)                            AS descripcion
         FROM {cfg.T('FACT_VENTAS')} fv
-        LEFT JOIN (
-            SELECT CODIGO_PRODUCTO, MAX(DESCRIPCION) AS DESCRIPCION
-            FROM {cfg.TM('DIM_PARTE')}
-            GROUP BY CODIGO_PRODUCTO
-        ) dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO
-        WHERE {' AND '.join(conds)} AND fv.NUMERO_DOCUMENTO IS NOT NULL
+        LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO
+        LEFT JOIN {cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO
+        WHERE {where_clause}
     """
-    df = connector.query(sql, params)
+    df = connector.query(sql)
     df.columns = [c.lower() for c in df.columns]
 
     from collections import defaultdict
@@ -91,60 +91,64 @@ def _build_rules(cfg, ano: int, mes: Optional[int], top_n: int, min_soporte: flo
 def get_rules(
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
+    mes_fin: Optional[int] = Query(None, ge=1, le=12),
     top_n: int = Query(50, ge=5, le=200),
     min_soporte: float = Query(0.02, ge=0.005, le=0.5),
 ):
     cfg = get_settings()
-    key = f"cs_rules:{ano}:{mes}:{top_n}:{min_soporte}"
+    key = f"cs_rules:{ano}:{mes}:{mes_fin}:{top_n}:{min_soporte}"
     if (hit := cache.get(key)):
         return hit
     try:
-        df = _build_rules(cfg, ano, mes, top_n, min_soporte)
+        df = _build_rules(cfg, ano, mes, top_n, min_soporte, mes_fin)
     except Exception as exc:
         logger.error("Cross-selling rules error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc))
 
-    result = {"ano": ano, "mes": mes, "data": df.to_dict("records") if not df.empty else []}
+    result = {"ano": ano, "mes": mes, "mes_fin": mes_fin, "data": df.to_dict("records") if not df.empty else []}
     cache.set(key, result)
     return result
 
 
-@router.get("/{codigo_vendedor}")
-def get_recs_for_vendedor(
-    codigo_vendedor: str,
+@router.get("/{numero_cliente}")
+def get_recs_for_cliente(
+    numero_cliente: str,
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
+    mes_fin: Optional[int] = Query(None, ge=1, le=12),
     top_n: int = Query(10, ge=1, le=50),
     min_soporte: float = Query(0.02, ge=0.005, le=0.5),
 ):
-    """Recomienda productos no comprados por el vendedor basados en lift."""
+    """Recomienda productos no comprados por el cliente basados en lift."""
     cfg = get_settings()
-    key = f"cs_vend:{codigo_vendedor}:{ano}:{mes}:{top_n}"
+    key = f"cs_cliente:{numero_cliente}:{ano}:{mes}:{mes_fin}:{top_n}"
     if (hit := cache.get(key)):
         return hit
 
-    # Products the vendor HAS bought
-    conds: list = ["fv.ANO_FISCAL = %s", "fv.CODIGO_VENDEDOR = %s"]
-    params: list = [ano, codigo_vendedor]
-    if mes:
-        conds.append("fv.PERIODO_FISCAL = %s"); params.append(mes)
+    # Products the client HAS bought
+    where_parts: list = [f"fv.ANO_FISCAL = {ano}", f"fv.NUMERO_CLIENTE = '{numero_cliente}'"]
+    if mes and mes_fin and mes_fin > mes:
+        where_parts.append(f"fv.PERIODO_FISCAL BETWEEN {mes} AND {mes_fin}")
+    elif mes:
+        where_parts.append(f"fv.PERIODO_FISCAL = {mes}")
+    where_clause = " AND ".join(where_parts)
 
     sql_owns = f"""
         SELECT DISTINCT fv.CODIGO_PRODUCTO
         FROM {cfg.T('FACT_VENTAS')} fv
-        WHERE {' AND '.join(conds)}
+        WHERE {where_clause}
     """
     try:
-        df_owns = connector.query(sql_owns, params)
+        df_owns = connector.query(sql_owns)
         df_owns.columns = [c.lower() for c in df_owns.columns]
         owned = set(df_owns["codigo_producto"].astype(str).tolist())
-        rules_df = _build_rules(cfg, ano, mes, 500, min_soporte)
+        rules_df = _build_rules(cfg, ano, mes, 500, min_soporte, mes_fin)
     except Exception as exc:
-        logger.error("Cross-selling vendor error: %s", exc)
+        logger.error("Cross-selling cliente error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc))
 
     if rules_df.empty or not owned:
-        return {"vendedor": codigo_vendedor, "recomendaciones": []}
+        return {"cliente": numero_cliente, "recomendaciones": []}
 
     # Find rules where antecedent is owned and consequent is NOT owned
     recs = (
@@ -156,7 +160,7 @@ def get_recs_for_vendedor(
     )
 
     result = {
-        "vendedor": codigo_vendedor,
+        "cliente": numero_cliente,
         "productos_actuales": len(owned),
         "recomendaciones": recs.to_dict("records"),
     }

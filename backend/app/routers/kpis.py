@@ -23,6 +23,24 @@ router = APIRouter(prefix="/api/kpis", tags=["KPIs"])
 logger = logging.getLogger(__name__)
 
 
+def _parse_csv(value: Optional[str]) -> list:
+    """Parse comma-separated string to cleaned list."""
+    if not value:
+        return []
+    return [v.strip() for v in value.split(',') if v.strip()]
+
+
+def _multi_cond(col: str, value: Optional[str]) -> tuple[Optional[str], list]:
+    """Return (condition_str, params_list) for single or multi-value equality."""
+    items = _parse_csv(value)
+    if not items:
+        return None, []
+    if len(items) == 1:
+        return f"{col} = %s", [items[0]]
+    ph = ', '.join(['%s'] * len(items))
+    return f"{col} IN ({ph})", items
+
+
 def _safe_div(a, b, default=0.0):
     try:
         return a / b if b and b != 0 else default
@@ -75,12 +93,12 @@ class KPIEngine:
             joins.append(
                 f"LEFT JOIN {self.cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY"
             )
-            cond.append("dd.DESCRIPCION_REGION = %s")
-            params.append(self.region)
+            c, p = _multi_cond("dd.DESCRIPCION_REGION", self.region)
+            if c: cond.append(c); params.extend(p)
 
         if self.vendedor:
-            cond.append("fv.CODIGO_VENDEDOR = %s")
-            params.append(self.vendedor)
+            c, p = _multi_cond("fv.CODIGO_VENDEDOR", self.vendedor)
+            if c: cond.append(c); params.extend(p)
 
         if self.grupo_comercial or self.planta:
             joins.append(
@@ -90,11 +108,11 @@ class KPIEngine:
                 joins.append(
                     f"LEFT JOIN {self.cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO"
                 )
-                cond.append("dgc.NOMBRE_GRUPO = %s")
-                params.append(self.grupo_comercial)
+                c, p = _multi_cond("dgc.NOMBRE_GRUPO", self.grupo_comercial)
+                if c: cond.append(c); params.extend(p)
             if self.planta:
-                cond.append("dgp.LINEA_NEGOCIO = %s")
-                params.append(self.planta)
+                c, p = _multi_cond("dgp.LINEA_NEGOCIO", self.planta)
+                if c: cond.append(c); params.extend(p)
 
         if self.excl_exportacion:
             if not any("DIM_DOMICILIO" in j for j in joins):
@@ -180,9 +198,11 @@ class KPIEngine:
             fact_joins.append(
                 f"LEFT JOIN {self.cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY"
             )
-            fact_cond.append("dd.DESCRIPCION_REGION = %s"); fact_params.append(self.region)
+            c, p = _multi_cond("dd.DESCRIPCION_REGION", self.region)
+            if c: fact_cond.append(c); fact_params.extend(p)
         if self.vendedor:
-            fact_cond.append("fv.CODIGO_VENDEDOR = %s"); fact_params.append(self.vendedor)
+            c, p = _multi_cond("fv.CODIGO_VENDEDOR", self.vendedor)
+            if c: fact_cond.append(c); fact_params.extend(p)
         if self.excl_pvta:
             fact_cond.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)")
         if self.excl_exportacion:

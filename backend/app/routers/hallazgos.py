@@ -158,18 +158,17 @@ def get_hallazgos(
         df_vend_pp = df_vend[df_vend["pp_valor"] > 0].sort_values("cump", ascending=False)
 
         # ── 4. Stock vs No-Stock con comparación YoY ──────────────────────────
+        # Proxy: COMERCIALIZACION line → No Stock, all other lines → Stock
         pvta_cond2 = " AND (UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)" if excl_pvta else ""
         sql_stock = f"""
             SELECT
-                CASE WHEN dp.ES_STOCK = TRUE THEN 'Stock' ELSE 'No Stock' END AS categoria,
+                CASE WHEN UPPER(COALESCE(dgp.LINEA_NEGOCIO, '')) LIKE '%%COMERCIALIZ%%'
+                     THEN 'No Stock' ELSE 'Stock' END AS categoria,
                 COALESCE(SUM(CASE WHEN fv.ANO_FISCAL = {ano} AND {mes_cond_cur} THEN fv.VENTAS_NETAS END), 0) AS vn_cur,
                 COALESCE(SUM(CASE WHEN fv.ANO_FISCAL = {ano-1} AND {mes_cond_ant} THEN fv.VENTAS_NETAS END), 0) AS vn_ant,
                 COUNT(DISTINCT CASE WHEN fv.ANO_FISCAL = {ano} AND {mes_cond_cur} THEN fv.NUMERO_CLIENTE END) AS clientes_cur
             FROM {cfg.T('FACT_VENTAS')} fv
-            LEFT JOIN (
-                SELECT CODIGO_PRODUCTO, ES_STOCK FROM {cfg.TM('DIM_PARTE')}
-                QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY CODIGO_PRODUCTO) = 1
-            ) dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO
+            LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO
             WHERE fv.ANO_FISCAL IN ({ano}, {ano-1})
               {pvta_cond2}
             GROUP BY 1

@@ -4,7 +4,7 @@ import { useFilters } from '../context/FilterContext'
 import { useData } from '../hooks/useData'
 import { api } from '../services/api'
 import { fmtCOP, fmtPct, cumpColor, cumpBg, pctColor, MONTH_NAMES } from '../utils/format'
-import { Target, TrendingUp, Clock, Zap, Leaf, Sprout } from 'lucide-react'
+import { Target, TrendingUp, Clock, Zap, Leaf, Sprout, Plus, X, Check } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, ReferenceLine,
@@ -87,7 +87,7 @@ function ChartTooltip({ active, payload, label }) {
   )
 }
 
-function PPTable({ data, loading, hasGranularPP, hasPP }) {
+function PPTable({ data, loading, hasGranularPP, hasPP, panelId, metaDims }) {
   if (loading) return (
     <div className="space-y-1.5 mt-2">
       {[...Array(6)].map((_, i) => (
@@ -96,6 +96,8 @@ function PPTable({ data, loading, hasGranularPP, hasPP }) {
     </div>
   )
   if (!data?.length) return <p className="text-slate-500 text-xs text-center py-8">Sin datos para el período</p>
+
+  const showMetaDim = Object.keys(metaDims || {}).length > 0
 
   return (
     <div className="overflow-x-auto mt-2">
@@ -112,45 +114,66 @@ function PPTable({ data, loading, hasGranularPP, hasPP }) {
               <th className="pb-2 font-medium text-right">Cump PP</th>
               <th className="pb-2 font-medium text-right">Cump DS</th>
             </>}
+            {showMetaDim && <th className="pb-2 font-medium text-right text-brand-400">Meta ✎</th>}
             <th className="pb-2 font-medium text-right">Año Ant.</th>
             <th className="pb-2 font-medium text-right">Var YoY</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((d, i) => (
-            <tr key={i} className="border-b border-surface-700/30 hover:bg-surface-700/20">
-              <td className="py-2 text-slate-500">{i + 1}</td>
-              <td className="py-2 text-slate-100">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PALETTE[i % 12] }} />
-                  <span className="max-w-[180px] truncate">{d.dimension || '—'}</span>
-                </div>
-              </td>
-              <td className="py-2 text-right font-semibold text-brand-300">{fmtCOP(d.ventas_netas)}</td>
-              <td className="py-2 text-right text-slate-400">
-                <div className="flex items-center justify-end gap-1.5">
-                  <div className="w-8 h-1 bg-surface-700 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-brand-500" style={{ width: `${d.participacion_pct}%` }} />
+          {data.map((d, i) => {
+            const dimKey = `${panelId}:${d.dimension}`
+            const metaVal = metaDims?.[dimKey] ?? null
+            const metaCump = metaVal != null && d.ventas_netas > 0
+              ? d.ventas_netas / metaVal * 100 : null
+            return (
+              <tr key={i} className="border-b border-surface-700/30 hover:bg-surface-700/20">
+                <td className="py-2 text-slate-500">{i + 1}</td>
+                <td className="py-2 text-slate-100">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PALETTE[i % 12] }} />
+                    <span className="max-w-[180px] truncate">{d.dimension || '—'}</span>
                   </div>
-                  {fmtPct(d.participacion_pct, 1)}
-                </div>
-              </td>
-              {hasGranularPP && hasPP && <>
-                <td className="py-2 text-right text-slate-400">{d.presupuesto != null ? fmtCOP(d.presupuesto) : '—'}</td>
-                <td className="py-2 text-right text-slate-400">{d.debe_ser != null ? fmtCOP(d.debe_ser) : '—'}</td>
-                <td className={`py-2 text-right font-semibold ${cumpColor(d.cumplimiento_pct)}`}>
-                  {d.cumplimiento_pct != null ? fmtPct(d.cumplimiento_pct, 1) : '—'}
                 </td>
-                <td className={`py-2 text-right font-semibold ${cumpColor(d.cump_debe_ser_pct)}`}>
-                  {d.cump_debe_ser_pct != null ? fmtPct(d.cump_debe_ser_pct, 1) : '—'}
+                <td className="py-2 text-right font-semibold text-brand-300">{fmtCOP(d.ventas_netas)}</td>
+                <td className="py-2 text-right text-slate-400">
+                  <div className="flex items-center justify-end gap-1.5">
+                    <div className="w-8 h-1 bg-surface-700 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-brand-500" style={{ width: `${d.participacion_pct}%` }} />
+                    </div>
+                    {fmtPct(d.participacion_pct, 1)}
+                  </div>
                 </td>
-              </>}
-              <td className="py-2 text-right text-slate-500">{d.ventas_netas_ant ? fmtCOP(d.ventas_netas_ant) : '—'}</td>
-              <td className={`py-2 text-right font-semibold ${pctColor(d.variacion_yoy_pct)}`}>
-                {d.variacion_yoy_pct != null ? fmtPct(d.variacion_yoy_pct, 1) : '—'}
-              </td>
-            </tr>
-          ))}
+                {hasGranularPP && hasPP && <>
+                  <td className="py-2 text-right text-slate-400">{d.presupuesto != null ? fmtCOP(d.presupuesto) : '—'}</td>
+                  <td className="py-2 text-right text-slate-400">{d.debe_ser != null ? fmtCOP(d.debe_ser) : '—'}</td>
+                  <td className={`py-2 text-right font-semibold ${cumpColor(d.cumplimiento_pct)}`}>
+                    {d.cumplimiento_pct != null ? fmtPct(d.cumplimiento_pct, 1) : '—'}
+                  </td>
+                  <td className={`py-2 text-right font-semibold ${cumpColor(d.cump_debe_ser_pct)}`}>
+                    {d.cump_debe_ser_pct != null ? fmtPct(d.cump_debe_ser_pct, 1) : '—'}
+                  </td>
+                </>}
+                {showMetaDim && (
+                  <td className="py-2 text-right">
+                    {metaVal != null ? (
+                      <div>
+                        <span className="text-brand-400 font-medium">{fmtCOP(metaVal)}</span>
+                        {metaCump != null && (
+                          <span className={`ml-1 text-xs font-bold ${metaCump >= 100 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {fmtPct(metaCump, 0)}
+                          </span>
+                        )}
+                      </div>
+                    ) : <span className="text-slate-600">—</span>}
+                  </td>
+                )}
+                <td className="py-2 text-right text-slate-500">{d.ventas_netas_ant ? fmtCOP(d.ventas_netas_ant) : '—'}</td>
+                <td className={`py-2 text-right font-semibold ${pctColor(d.variacion_yoy_pct)}`}>
+                  {d.variacion_yoy_pct != null ? fmtPct(d.variacion_yoy_pct, 1) : '—'}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -162,12 +185,21 @@ function PPPanel({ panelId, label, filters, refreshKey }) {
     () => api.presupuesto(filters, panelId, 30),
     [filters, refreshKey, panelId],
   )
+  const { data: metaData } = useData(
+    () => api.presupuestoManualGet(filters.ano, filters.mes || null),
+    [filters.ano, filters.mes],
+  )
 
   const rows    = data?.data || []
   const summary = data?.summary || {}
   const org     = data?.organico || {}
   const hasPP   = data?.has_pp || false
   const isGran  = data?.pp_granular || false
+
+  const metaGlobal  = metaData?.metas?.global ?? null
+  const metaDims    = metaData?.metas?.por_dimension ?? {}
+  const metaNota    = metaData?.metas?.nota || ''
+  const hasMetaManual = metaGlobal != null || Object.keys(metaDims).length > 0
 
   const chartData = rows.slice(0, 12).map((d, i) => ({
     name:        d.dimension?.length > 20 ? d.dimension.slice(0, 20) + '…' : (d.dimension || '—'),
@@ -194,6 +226,23 @@ function PPPanel({ panelId, label, filters, refreshKey }) {
             <GaugeMini label="Cump vs PP" value={summary.cumplimiento_pct} loading={loading} />
             <GaugeMini label="Cump vs Debe Ser" value={summary.cump_debe_ser_pct} loading={loading} />
           </>}
+          {hasMetaManual && (
+            <div className="card py-3 px-4 border-brand-500/30 bg-brand-600/5">
+              <p className="text-xs text-brand-400 font-medium uppercase tracking-wide mb-1">Meta Manual</p>
+              {metaGlobal != null && (
+                <p className="text-lg font-bold text-brand-300">{fmtCOP(metaGlobal)}</p>
+              )}
+              {Object.keys(metaDims).length > 0 && (
+                <p className="text-xs text-slate-500 mt-0.5">{Object.keys(metaDims).length} dim. configuradas</p>
+              )}
+              {metaNota && <p className="text-xs text-slate-500 mt-0.5 truncate">{metaNota}</p>}
+              {metaGlobal != null && data?.ventas_totales > 0 && (
+                <p className={`text-xs font-semibold mt-1 ${data.ventas_totales >= metaGlobal ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {fmtPct(data.ventas_totales / metaGlobal * 100, 1)} cump.
+                </p>
+              )}
+            </div>
+          )}
           {org.organica != null && (
             <div className="card py-3 px-4 col-span-2 md:col-span-1">
               <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-2">Orgánica / Inorgánica</p>
@@ -232,17 +281,133 @@ function PPPanel({ panelId, label, filters, refreshKey }) {
           </div>
 
           {/* Table */}
-          <PPTable data={rows} loading={loading} hasGranularPP={isGran} hasPP={hasPP} />
+          <PPTable data={rows} loading={loading} hasGranularPP={isGran} hasPP={hasPP}
+            panelId={panelId} metaDims={metaDims} />
         </div>
       </div>
     </ErrBound>
   )
 }
 
+const DIM_INGRESO = [
+  { value: '',                 label: 'Global (sin dimensión)' },
+  { value: 'region',           label: 'Región' },
+  { value: 'planta',           label: 'Planta' },
+  { value: 'grupo_comercial',  label: 'Grupo Comercial' },
+  { value: 'linea_negocio',    label: 'Línea de Negocio' },
+]
+
+function MetaModal({ filters, onClose, onSaved }) {
+  const curYear = filters.ano || new Date().getFullYear()
+  const [ano,    setAno]    = useState(String(curYear))
+  const [mes,    setMes]    = useState(filters.mes ? String(filters.mes) : '')
+  const [monto,  setMonto]  = useState('')
+  const [dimKey, setDimKey] = useState('')
+  const [dimVal, setDimVal] = useState('')
+  const [nota,   setNota]   = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err,    setErr]    = useState('')
+  const [ok,     setOk]     = useState(false)
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    const v = parseFloat(monto.replace(/[.,]/g, (m, o, s) => {
+      const dots   = s.split('').filter(c => c === '.').length
+      const commas = s.split('').filter(c => c === ',').length
+      return (dots === 1 && commas === 0) || (commas === 1 && dots === 0) ? (m === ',' ? '.' : m) : ''
+    }))
+    if (isNaN(v) || v <= 0) { setErr('Ingresa un monto válido mayor a 0'); return }
+    setSaving(true); setErr('')
+    try {
+      await api.presupuestoManualSave({
+        ano:              parseInt(ano),
+        mes:              mes ? parseInt(mes) : null,
+        monto:            v,
+        dimension_key:    dimKey || null,
+        dimension_valor:  dimKey ? dimVal : null,
+        nota:             nota || null,
+      })
+      setOk(true)
+      setTimeout(() => { onSaved(); onClose() }, 1200)
+    } catch (ex) {
+      setErr(ex?.response?.data?.detail || ex.message || 'Error al guardar')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md bg-surface-900 border border-surface-700 rounded-2xl shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-700">
+          <h2 className="text-sm font-semibold text-slate-100">Ingresar Meta de Presupuesto</h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-200 transition-colors"><X size={16} /></button>
+        </div>
+        <form onSubmit={handleSave} className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Año</label>
+              <input type="number" value={ano} onChange={(e) => setAno(e.target.value)} min="2020" max="2030" className="input" required />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Mes (opcional)</label>
+              <select value={mes} onChange={(e) => setMes(e.target.value)} className="select">
+                <option value="">— Anual —</option>
+                {MONTH_NAMES.slice(1).map((m, i) => <option key={i+1} value={String(i+1)}>{m}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Monto (COP)</label>
+            <input
+              type="text" value={monto} onChange={(e) => setMonto(e.target.value)}
+              placeholder="Ej: 500000000"
+              className="input" required
+            />
+            {monto && !isNaN(parseFloat(monto.replace(',','.'))) && (
+              <p className="text-xs text-brand-400 mt-1">{fmtCOP(parseFloat(monto.replace(',','.')))}</p>
+            )}
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Dimensión (opcional)</label>
+            <select value={dimKey} onChange={(e) => { setDimKey(e.target.value); setDimVal('') }} className="select mb-2">
+              {DIM_INGRESO.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+            </select>
+            {dimKey && (
+              <input
+                type="text" value={dimVal} onChange={(e) => setDimVal(e.target.value)}
+                placeholder={`Valor de ${DIM_INGRESO.find(d => d.value === dimKey)?.label || ''}`}
+                className="input"
+              />
+            )}
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Nota (opcional)</label>
+            <input type="text" value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Ej: Revisado en junta de enero" className="input" />
+          </div>
+          {err && <p className="text-xs text-red-400">{err}</p>}
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 text-sm text-slate-400 hover:text-slate-100 bg-surface-800 border border-surface-700 rounded-xl transition-colors">
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving || ok}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-brand-600 hover:bg-brand-500 disabled:opacity-60 text-white rounded-xl transition-colors"
+            >
+              {ok ? <><Check size={14} /> Guardado</> : saving ? 'Guardando…' : <><Plus size={14} /> Guardar Meta</>}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export function PresupuestoView() {
   const { refreshKey } = useOutletContext()
   const { filters }    = useFilters()
-  const [active, setActive] = useState('region')
+  const [active, setActive]     = useState('region')
+  const [showMeta, setShowMeta] = useState(false)
+  const [metaSaved, setMetaSaved] = useState(0)
 
   const panel  = PANELS.find((p) => p.id === active) || PANELS[0]
   const period = filters.mes
@@ -251,6 +416,13 @@ export function PresupuestoView() {
 
   return (
     <div className="flex flex-col gap-5 animate-fade-in">
+      {showMeta && (
+        <MetaModal
+          filters={filters}
+          onClose={() => setShowMeta(false)}
+          onSaved={() => setMetaSaved((n) => n + 1)}
+        />
+      )}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-100">Análisis de Presupuesto</h1>
@@ -258,8 +430,14 @@ export function PresupuestoView() {
             PP vs Ventas reales · Cumplimiento · Deber Ser · YoY · {period}
           </p>
         </div>
-        {/* Dimension selector */}
-        <div className="flex gap-1 flex-wrap justify-end">
+        {/* Actions + Dimension selector */}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button
+            onClick={() => setShowMeta(true)}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/40 text-brand-300 rounded-lg transition-colors"
+          >
+            <Plus size={12} /> Ingresar Meta
+          </button>
           {PANELS.map((p) => (
             <button
               key={p.id}
@@ -280,7 +458,7 @@ export function PresupuestoView() {
       </div>
 
       <PPPanel
-        key={active}
+        key={`${active}-${metaSaved}`}
         panelId={active}
         label={panel.label}
         filters={filters}

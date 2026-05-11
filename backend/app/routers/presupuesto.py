@@ -25,17 +25,18 @@ PP_AÑO = 2026
 _GRANULAR = {"region", "planta", "grupo_comercial", "linea_negocio"}
 
 # Per-dimension PP from PP_VENDEDOR_VALOR (PP_VALOR_MES)
-_VENDEDOR_PP_DIMS = {"mercado", "unidad_medida_venta"}
+_VENDEDOR_PP_DIMS = {"mercado", "unidad_medida_venta", "vendedor"}
 
 # Column name in PP_VENDEDOR_VALOR for each _VENDEDOR_PP_DIMS dimension
 _PP_VENDEDOR_COL = {
     "mercado":            "MERCADO",
     "unidad_medida_venta": "UNIDAD_MEDIDA",
+    "vendedor":            "VENDEDOR",
 }
 
 _VALID = (
     r"^(region|planta|grupo_comercial|mercado|linea_negocio"
-    r"|tipo_fabricacion|unidad_medida_venta|tipo_cliente)$"
+    r"|tipo_fabricacion|unidad_medida_venta|tipo_cliente|vendedor)$"
 )
 
 
@@ -77,6 +78,7 @@ def _dim_cfg(cfg, group_by: str):
             "dc.TIPO_CLIENTE",
             [f"LEFT JOIN {cfg.TM('DIM_CLIENTE')} dc ON fv.NUMERO_CLIENTE = dc.NUMERO_CLIENTE"],
         ),
+        "vendedor": ("fv.CODIGO_VENDEDOR", []),
     }[group_by]
 
 

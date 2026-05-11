@@ -41,8 +41,6 @@ def get_detail(
         f"LEFT JOIN {cfg.TM('DIM_CLIENTE')} dc ON fv.NUMERO_CLIENTE = dc.NUMERO_CLIENTE",
         f"LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv ON fv.CODIGO_VENDEDOR = dv.CODIGO_VENDEDOR",
         f"LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY",
-        f"LEFT JOIN {cfg.TM('DIM_TERRITORIO')} dter ON dd.TERRITORIYID = dter.ID_TERRITORIO",
-        f"LEFT JOIN {cfg.TM('DIM_PARTE')} dp ON fv.NUMERO_PARTE = dp.NUMERO_PARTE",
         f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO",
         f"LEFT JOIN {cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO",
     ]
@@ -53,7 +51,7 @@ def get_detail(
     if mes:
         cond.append("fv.PERIODO_FISCAL = %s"); params.append(mes)
     if region:
-        cond.append("dter.DESCRIPCION_REGION = %s"); params.append(region)
+        cond.append("dd.DESCRIPCION_REGION = %s"); params.append(region)
     if vendedor:
         cond.append("fv.CODIGO_VENDEDOR = %s"); params.append(vendedor)
     if grupo_comercial:
@@ -73,10 +71,10 @@ def get_detail(
             dc.NOMBRE                AS CLIENTE,
             dc.TIPO_CLIENTE,
             dv.NOMBRE                AS VENDEDOR,
-            dter.DESCRIPCION_REGION  AS REGION,
-            dp.DESCRIPCION           AS PRODUCTO,
-            dp.NUMERO_PARTE,
-            dgp.PLANTA,
+            dd.DESCRIPCION_REGION    AS REGION,
+            fv.CODIGO_PRODUCTO       AS PRODUCTO,
+            fv.CODIGO_PRODUCTO       AS NUMERO_PARTE,
+            dgp.LINEA_NEGOCIO        AS PLANTA,
             dgc.NOMBRE_GRUPO         AS GRUPO_COMERCIAL,
             fv.VENTAS_NETAS,
             fv.VENTAS_DOLARES,

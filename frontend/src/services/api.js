@@ -23,17 +23,31 @@ http.interceptors.response.use(
 
 const toParams = (filters) => {
   const p = {}
-  if (filters.ano)             p.ano              = filters.ano
-  if (filters.mes)             p.mes              = filters.mes
-  if (filters.region)          p.region           = filters.region
-  if (filters.vendedor)        p.vendedor         = filters.vendedor
-  if (filters.grupo_comercial) p.grupo_comercial  = filters.grupo_comercial
-  if (filters.planta)          p.planta           = filters.planta
-  if (filters.mercado)         p.mercado          = filters.mercado
-  if (filters.cliente)         p.cliente          = filters.cliente
+  if (filters.ano)  p.ano = filters.ano
+  if (filters.mes)  p.mes = filters.mes
   if (filters.mes_fin && filters.mes_fin !== filters.mes) p.mes_fin = filters.mes_fin
-  if (filters.excl_exportacion) p.excl_exportacion = true
-  if (filters.excl_pvta)        p.excl_pvta        = true
+
+  // Dimension filters — support both legacy strings and new arrays
+  const toCSV = (v) => {
+    if (!v) return null
+    if (Array.isArray(v)) return v.length ? v.join(',') : null
+    return v || null
+  }
+  const r   = toCSV(filters._regiones   ?? filters.region)
+  const ven = toCSV(filters._vendedores  ?? filters.vendedor)
+  const gc  = toCSV(filters._grupos_comerciales ?? filters.grupo_comercial)
+  const pl  = toCSV(filters._plantas    ?? filters.planta)
+  const mer = toCSV(filters._mercados   ?? filters.mercado)
+
+  if (r)   p.region           = r
+  if (ven) p.vendedor         = ven
+  if (gc)  p.grupo_comercial  = gc
+  if (pl)  p.planta           = pl
+  if (mer) p.mercado          = mer
+
+  if (filters.cliente)          p.cliente           = filters.cliente
+  if (filters.excl_exportacion) p.excl_exportacion  = true
+  if (filters.excl_pvta)        p.excl_pvta         = true
   return p
 }
 
@@ -66,7 +80,7 @@ export const api = {
   agente:          (pregunta, historial, ano, mes) => http.post('/agente', { pregunta, historial: historial || [], ano, mes }).then((r) => r.data),
   ventasDiarias:     (filters, limit) => http.get('/ventas-diarias', { params: { ...toParams(filters), limit: limit || 90 } }).then((r) => r.data),
   ventasDiariasPvta: (filters, limit) => http.get('/ventas-diarias/pvta', { params: { ano: filters.ano, ...(filters.mes ? { mes: filters.mes } : {}), ...(filters.mes_fin && filters.mes_fin !== filters.mes ? { mes_fin: filters.mes_fin } : {}), limit: limit || 120 } }).then((r) => r.data),
-  presupuesto:     (filters, groupBy, topN) => http.get('/presupuesto', { params: { ...toParams(filters), group_by: groupBy, top_n: topN || 30 } }).then((r) => r.data),
+  presupuesto:     (filters, groupBy, topN) => http.get('/presupuesto', { params: { ...toParams(filters), group_by: groupBy, top_n: topN || 30, ...(filters.excl_pvta === false ? { excl_pvta: false } : {}) } }).then((r) => r.data),
   clientesEstados:   (filters)             => http.get('/clientes/estados',   { params: toParams(filters) }).then((r) => r.data),
   clientesLista:     (filters, estado, topN) => http.get('/clientes/lista',   { params: { ...toParams(filters), ...(estado ? { estado } : {}), top_n: topN || 500 } }).then((r) => r.data),
   clientesBreakdown: (filters)             => http.get('/clientes/breakdown', { params: toParams(filters) }).then((r) => r.data),
@@ -87,13 +101,26 @@ export const api = {
   factoresComDelete: (codigo)       => http.delete(`/factores-com/${codigo}`).then((r) => r.data),
 
   // ── Nuevos endpoints analíticos ───────────────────────────────────────────
-  rfm:          (ano, mes, exclPvta, topN) => http.get('/rfm',    { params: { ano, ...(mes ? { mes } : {}), excl_pvta: exclPvta ?? true, top_n: topN || 500 } }).then((r) => r.data),
-  abcxyz:       (ano, exclPvta, topN)      => http.get('/abcxyz', { params: { ano, excl_pvta: exclPvta ?? true, top_n: topN || 500 } }).then((r) => r.data),
+  rfm:          (ano, mes, exclPvta, topN, mesFin) => http.get('/rfm',    { params: { ano, ...(mes ? { mes } : {}), ...(mesFin ? { mes_fin: mesFin } : {}), excl_pvta: exclPvta ?? true, top_n: topN || 500 } }).then((r) => r.data),
+  abcxyz:       (ano, mes, exclPvta, topN, mesFin) => http.get('/abcxyz', { params: { ano, ...(mes ? { mes } : {}), ...(mesFin ? { mes_fin: mesFin } : {}), excl_pvta: exclPvta ?? true, top_n: topN || 500 } }).then((r) => r.data),
   clv:          (ano, exclPvta, topN)      => http.get('/clv',    { params: { ano, excl_pvta: exclPvta ?? true, top_n: topN || 200 } }).then((r) => r.data),
-  crossSelling: (ano, mes, topN, minS)     => http.get('/cross-selling', { params: { ano, ...(mes ? { mes } : {}), top_n: topN || 50, min_soporte: minS || 0.02 } }).then((r) => r.data),
-  crossSellingVendedor: (cod, ano, mes)    => http.get(`/cross-selling/${cod}`, { params: { ano, ...(mes ? { mes } : {}) } }).then((r) => r.data),
+  crossSelling: (ano, mes, topN, minS, mesFin) => http.get('/cross-selling', { params: { ano, ...(mes ? { mes } : {}), ...(mesFin ? { mes_fin: mesFin } : {}), top_n: topN || 50, min_soporte: minS || 0.02 } }).then((r) => r.data),
+  crossSellingCliente: (numeroCliente, ano, mes, mesFin) => http.get(`/cross-selling/${numeroCliente}`, { params: { ano, ...(mes ? { mes } : {}), ...(mesFin ? { mes_fin: mesFin } : {}) } }).then((r) => r.data),
   churn:        (ano, exclPvta, topN)      => http.get('/churn',  { params: { ano, excl_pvta: exclPvta ?? true, top_n: topN || 200 } }).then((r) => r.data),
+
+  pvtaPresupuesto: (ano, mes) => http.get('/pvta-presupuesto', { params: { ano, ...(mes ? { mes } : {}) } }).then((r) => r.data),
+
+  // ── Análisis avanzado ─────────────────────────────────────────────────────
+  pvm:           (filters, groupBy) => http.get('/pvm', { params: { ...toParams(filters), group_by: groupBy || 'linea_negocio' } }).then((r) => r.data),
+  rfmMigracion:  (filters, topN) => http.get('/rfm-migracion', { params: { ano: filters.ano, ...(filters.mes ? { mes: filters.mes } : {}), top_n: topN || 500 } }).then((r) => r.data),
+  estacionalidad:(filters, anosAtras) => http.get('/estacionalidad', { params: { ano: filters.ano, anos_atras: anosAtras || 4, ...( filters.excl_pvta ? { excl_pvta: true } : {}) } }).then((r) => r.data),
+  riesgoCliente: (filters, topN) => http.get('/riesgo-cliente', { params: { ano: filters.ano, excl_pvta: filters.excl_pvta ?? true, top_n: topN || 200 } }).then((r) => r.data),
+
+  // Clientes Pareto
+  getClientesPareto: (ano, mes, groupBy, dimension, mesFin, exclPvta, exclExportacion, region, vendedor) => http.get('/clientes-pareto', { params: { ano, ...(mes ? { mes } : {}), ...(mesFin ? { mes_fin: mesFin } : {}), group_by: groupBy, ...(dimension ? { dimension } : {}), ...(exclPvta ? { excl_pvta: true } : {}), ...(exclExportacion ? { excl_exportacion: true } : {}), ...(region ? { region } : {}), ...(vendedor ? { vendedor } : {}) } }).then((r) => r.data),
+  getDimensions: (groupBy) => http.get('/dimensions', { params: { group_by: groupBy } }).then((r) => r.data),
   search:       (q, tipo)                  => http.get('/search', { params: { q, tipo: tipo || 'all' } }).then((r) => r.data),
+  desempeno:    (dimType, dimValue, ano, mes) => http.get('/desempeno', { params: { dimension_type: dimType, dimension_value: dimValue, ano, ...(mes ? { mes } : {}) } }).then((r) => r.data),
 
   // ── Notificaciones ────────────────────────────────────────────────────────
   notifConfig:       ()               => http.get('/notificaciones/config').then((r) => r.data),
@@ -106,6 +133,11 @@ export const api = {
   notifPreview:      (cod, ano, mes)  => http.get(`/notificaciones/preview/${cod}`, { params: { ...(ano ? { ano } : {}), ...(mes ? { mes } : {}) } }).then((r) => r.data),
   notifTeamsTest:    (body)           => http.post('/notificaciones/teams-test', body).then((r) => r.data),
   notifWhatsAppTest: (body)           => http.post('/notificaciones/whatsapp-test', body).then((r) => r.data),
+
+  // ── Presupuesto Manual ───────────────────────────────────────────────────
+  presupuestoManualGet:    (ano, mes)  => http.get('/presupuesto-manual', { params: { ano, ...(mes ? { mes } : {}) } }).then((r) => r.data),
+  presupuestoManualSave:   (body)      => http.post('/presupuesto-manual', body).then((r) => r.data),
+  presupuestoManualDelete: (ano, mes, dimensionKey, dimensionValor) => http.delete('/presupuesto-manual', { params: { ano, ...(mes ? { mes } : {}), ...(dimensionKey ? { dimension_key: dimensionKey, dimension_valor: dimensionValor } : {}) } }).then((r) => r.data),
 
   filterAnos:             () => http.get('/filters/anos').then((r) => r.data.anos),
   filterRegiones:         () => http.get('/filters/regiones').then((r) => r.data.regiones),
