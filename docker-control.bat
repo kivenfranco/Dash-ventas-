@@ -35,6 +35,8 @@ if /I "%1%"=="start" (
     goto clean_all
 ) else if /I "%1%"=="health" (
     goto check_health
+) else if /I "%1%"=="ip" (
+    goto show_ip_info
 ) else if /I "%1%"=="help" (
     goto show_help
 ) else (
@@ -65,16 +67,61 @@ echo   shell-frontend- Abre shell en el frontend
 echo   clean         - Limpia contenedores e imagenes
 echo   clean-all     - Elimina todo (CUIDADO!)
 echo   health        - Verifica health checks
+echo   ip            - Muestra IPs de acceso
 echo   help          - Muestra esta ayuda
 echo.
 echo Puertos:
 echo   Backend:  8000
 echo   Frontend: 5173
 echo.
-echo URLs:
-echo   API:      http://localhost:8000
-echo   Docs:     http://localhost:8000/docs
-echo   Frontend: http://localhost:5173
+echo Acceso:
+echo   Localhost: http://localhost:5173
+echo   Por IP:    .\docker-control.bat ip
+echo.
+goto end
+
+:show_ip_info
+cls
+echo.
+echo =====================================================
+echo BI Ventas - IPs de Acceso
+echo =====================================================
+echo.
+echo [*] Detectando IP del host...
+echo.
+
+REM Obtener IP (Windows)
+for /f "tokens=2 delims=:" %%A in ('ipconfig ^| findstr /I "IPv4"') do (
+    set "IP=%%A"
+    set "IP=!IP: =!"
+)
+
+if not defined IP (
+    echo [!] No se pudo detectar la IP automáticamente
+    echo.
+    echo Usa tu IP local manualmente. Ejemplos:
+    echo   - 192.168.x.x (privada)
+    echo   - 172.x.x.x (privada)
+    echo.
+    goto end
+)
+
+echo [+] IP Detectada: !IP!
+echo.
+echo =====================================================
+echo URLs de Acceso:
+echo =====================================================
+echo.
+echo   Frontend:   http://!IP!:5173
+echo   API:        http://!IP!:8000
+echo   Docs:       http://!IP!:8000/docs
+echo   ReDoc:      http://!IP!:8000/redoc
+echo.
+echo   Localhost:
+echo   Frontend:   http://localhost:5173
+echo   API:        http://localhost:8000
+echo.
+echo =====================================================
 echo.
 goto end
 
@@ -191,12 +238,26 @@ docker-compose exec frontend wget -q --spider http://localhost:5173/ && (
 goto end
 
 :show_urls
+REM Detectar IP
+for /f "tokens=2 delims=:" %%A in ('ipconfig ^| findstr /I "IPv4" ^| findstr /v "127.0"') do (
+    set "IP=%%A"
+    set "IP=!IP: =!"
+    goto show_urls_print
+)
+
+:show_urls_print
 echo.
 echo [+] Servicios disponibles:
 echo.
-echo   Frontend:     http://localhost:5173
-echo   API:          http://localhost:8000
-echo   Docs:         http://localhost:8000/docs
+if defined IP (
+    echo   Frontend (IP):  http://!IP!:5173
+    echo   API (IP):       http://!IP!:8000
+)
+echo   Frontend:      http://localhost:5173
+echo   API:           http://localhost:8000
+echo   Docs:          http://localhost:8000/docs
+echo.
+echo [*] Para ver IPs en cualquier momento: docker-control.bat ip
 echo.
 exit /b 0
 

@@ -10,7 +10,7 @@ services:
       dockerfile: Dockerfile.backend
     container_name: bi-ventas-backend
     ports:
-      - "8000:8000"  # API principal
+      - "0.0.0.0:8000:8000"  # API principal (accesible desde cualquier IP)
     environment:
       # Conexión a Snowflake (desde .env local)
       SNOWFLAKE_USER: ${SNOWFLAKE_USER:-tu_usuario}
@@ -84,8 +84,8 @@ services:
       dockerfile: Dockerfile.frontend
     container_name: bi-ventas-frontend
     ports:
-      - "5173:5173"  # Vite dev/prod
-      - "3000:3000"  # Fallback (opcional)
+      - "0.0.0.0:5173:5173"  # Vite dev/prod (accesible desde cualquier IP)
+      - "0.0.0.0:3000:3000"  # Fallback (opcional)
 
     # Network
     networks:

@@ -38,29 +38,29 @@ ${BLUE}BI Ventas - Docker Control${NC}
 Uso: ./docker-control.sh [COMANDO]
 
 Comandos disponibles:
-  ${GREEN}start${NC}      - Inicia los contenedores (build + up)
-  ${GREEN}stop${NC}       - Detiene los contenedores
-  ${GREEN}restart${NC}    - Reinicia los contenedores
-  ${GREEN}rebuild${NC}    - Reconstruye las imágenes y levanta contenedores
-  ${GREEN}logs${NC}       - Muestra los logs en tiempo real
-  ${GREEN}logs-backend${NC}  - Logs solo del backend
-  ${GREEN}logs-frontend${NC} - Logs solo del frontend
-  ${GREEN}status${NC}     - Muestra el estado de los contenedores
-  ${GREEN}shell-backend${NC} - Abre una shell en el contenedor del backend
+  ${GREEN}start${NC}          - Inicia los contenedores (build + up)
+  ${GREEN}stop${NC}           - Detiene los contenedores
+  ${GREEN}restart${NC}        - Reinicia los contenedores
+  ${GREEN}rebuild${NC}        - Reconstruye las imágenes y levanta contenedores
+  ${GREEN}logs${NC}           - Muestra los logs en tiempo real
+  ${GREEN}logs-backend${NC}   - Logs solo del backend
+  ${GREEN}logs-frontend${NC}  - Logs solo del frontend
+  ${GREEN}status${NC}         - Muestra el estado de los contenedores
+  ${GREEN}shell-backend${NC}  - Abre una shell en el contenedor del backend
   ${GREEN}shell-frontend${NC} - Abre una shell en el contenedor del frontend
-  ${GREEN}clean${NC}      - Limpia contenedores e imágenes no usadas
-  ${GREEN}clean-all${NC}  - Elimina todo (contenedores, imágenes, volúmenes)
-  ${GREEN}health${NC}     - Verifica el health check de los servicios
-  ${GREEN}help${NC}       - Muestra esta ayuda
+  ${GREEN}clean${NC}          - Limpia contenedores e imágenes no usadas
+  ${GREEN}clean-all${NC}      - Elimina todo (contenedores, imágenes, volúmenes)
+  ${GREEN}health${NC}         - Verifica el health check de los servicios
+  ${GREEN}ip${NC}             - Muestra IPs de acceso
+  ${GREEN}help${NC}           - Muestra esta ayuda
 
 Puertos:
   Backend:  8000
   Frontend: 5173
 
 URLs:
-  API:      http://localhost:8000
-  Docs:     http://localhost:8000/docs
-  Frontend: http://localhost:5173
+  Localhost: http://localhost:5173
+  Por IP:    ./docker-control.sh ip
 EOF
 }
 
@@ -159,12 +159,72 @@ check_health() {
     docker-compose exec frontend wget -q --spider http://localhost:5173/ && print_success "Frontend - OK" || print_error "Frontend - FALLO"
 }
 
+show_ip_info() {
+    clear
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}BI Ventas - IPs de Acceso${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    print_info "Detectando IP del host..."
+    echo ""
+
+    local ip=""
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        ip=$(hostname -I | awk '{print $1}')
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        ip=$(ipconfig getifaddr en0)
+    fi
+
+    if [ -z "$ip" ]; then
+        print_warning "No se pudo detectar la IP automáticamente"
+        echo ""
+        echo "Usa tu IP local manualmente. Ejemplos:"
+        echo "  - 192.168.x.x (privada)"
+        echo "  - 172.x.x.x (privada)"
+        echo ""
+        return
+    fi
+
+    print_success "IP Detectada: $ip"
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo "URLs de Acceso:"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    echo -e "  ${GREEN}Frontend:${NC}   http://$ip:5173"
+    echo -e "  ${GREEN}API:${NC}        http://$ip:8000"
+    echo -e "  ${GREEN}Docs:${NC}       http://$ip:8000/docs"
+    echo -e "  ${GREEN}ReDoc:${NC}      http://$ip:8000/redoc"
+    echo ""
+    echo "  Localhost:"
+    echo -e "  ${GREEN}Frontend:${NC}   http://localhost:5173"
+    echo -e "  ${GREEN}API:${NC}        http://localhost:8000"
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+}
+
 show_urls() {
     echo ""
     print_success "Servicios disponibles:"
-    echo -e "  ${BLUE}Frontend:${NC}     http://localhost:5173"
-    echo -e "  ${BLUE}API:${NC}          http://localhost:8000"
-    echo -e "  ${BLUE}Docs:${NC}         http://localhost:8000/docs"
+
+    # Detectar IP del host
+    local ip=""
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        ip=$(hostname -I | awk '{print $1}')
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        ip=$(ipconfig getifaddr en0)
+    fi
+
+    if [ -n "$ip" ]; then
+        echo -e "  ${BLUE}Frontend (IP):${NC}     http://$ip:5173"
+        echo -e "  ${BLUE}API (IP):${NC}          http://$ip:8000"
+    fi
+
+    echo -e "  ${BLUE}Frontend:${NC}         http://localhost:5173"
+    echo -e "  ${BLUE}API:${NC}              http://localhost:8000"
+    echo -e "  ${BLUE}Docs:${NC}             http://localhost:8000/docs"
     echo ""
 }
 
@@ -208,6 +268,9 @@ case "${1:-help}" in
         ;;
     health)
         check_health
+        ;;
+    ip)
+        show_ip_info
         ;;
     help)
         show_help

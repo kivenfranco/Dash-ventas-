@@ -1,6 +1,7 @@
 # 🐳 Docker - BI Ventas
 
 Configuración completa de Docker para ejecutar BI Ventas en contenedores estables y listos para producción.
+Los servicios son accesibles desde **localhost** y desde la **IP del host**.
 
 ## 📋 Requisitos
 
@@ -16,6 +17,9 @@ Configuración completa de Docker para ejecutar BI Ventas en contenedores establ
 ```bash
 # Ejecutar desde la raíz del proyecto
 .\docker-control.bat start
+
+# Ver IPs de acceso
+.\docker-control.bat ip
 ```
 
 ### Linux / macOS
@@ -25,16 +29,44 @@ chmod +x docker-control.sh
 
 # Ejecutar
 ./docker-control.sh start
+
+# Ver IPs de acceso
+./docker-control.sh ip
 ```
 
 ## 📍 Acceso a Servicios
 
-Una vez iniciados, puedes acceder a:
+### Por Localhost (Local)
+```
+Frontend: http://localhost:5173
+API:      http://localhost:8000
+Docs:     http://localhost:8000/docs
+ReDoc:    http://localhost:8000/redoc
+```
 
-- **Frontend**: http://localhost:5173
-- **API**: http://localhost:8000
-- **Documentación API (Swagger)**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+### Por IP del Host (Red Local)
+```bash
+# Detectar IP automáticamente
+.\docker-control.bat ip          # Windows
+./docker-control.sh ip           # Linux/macOS
+```
+
+Ejemplo con IP `192.168.1.100`:
+```
+Frontend: http://192.168.1.100:5173
+API:      http://192.168.1.100:8000
+Docs:     http://192.168.1.100:8000/docs
+```
+
+### Por IP del Contenedor
+```bash
+# Ver IP del contenedor
+docker-compose exec backend hostname -I
+docker-compose exec frontend hostname -I
+
+# Acceder a esa IP + puerto (funciona desde dentro de la red Docker)
+http://<container-ip>:8000
+```
 
 ## 🛠️ Comandos Disponibles
 
@@ -51,6 +83,7 @@ Una vez iniciados, puedes acceder a:
 | `shell-backend` | Abre una shell bash en el backend |
 | `shell-frontend` | Abre una shell en el frontend |
 | `health` | Verifica los health checks de ambos servicios |
+| `ip` | Muestra las IPs de acceso (localhost + host IP) |
 | `clean` | Limpia contenedores e imágenes no usadas |
 | `clean-all` | ⚠️ Elimina TODO (contenedores, imágenes, volúmenes) |
 
@@ -65,6 +98,9 @@ Una vez iniciados, puedes acceder a:
 
 # Ver estado de los contenedores
 ./docker-control.bat status
+
+# Mostrar IPs de acceso
+./docker-control.bat ip
 
 # Entrar al backend para ejecutar comandos
 ./docker-control.bat shell-backend
