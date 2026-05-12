@@ -1,0 +1,144 @@
+version: '3.9'
+
+services:
+  # ========================================
+  # BACKEND - FastAPI/Uvicorn
+  # ========================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: bi-ventas-backend
+    ports:
+      - "8000:8000"  # API principal
+    environment:
+      # Conexión a Snowflake (desde .env local)
+      SNOWFLAKE_USER: ${SNOWFLAKE_USER:-tu_usuario}
+      SNOWFLAKE_PASSWORD: ${SNOWFLAKE_PASSWORD:-tu_contraseña}
+      SNOWFLAKE_ACCOUNT: ${SNOWFLAKE_ACCOUNT:-xxxxxxx.region.azure}
+      SNOWFLAKE_WAREHOUSE: ${SNOWFLAKE_WAREHOUSE:-COMPUTE_WH}
+      SNOWFLAKE_DATABASE: ${SNOWFLAKE_DATABASE:-MI_BASE_DE_DATOS}
+      SNOWFLAKE_SCHEMA: ${SNOWFLAKE_SCHEMA:-PUBLIC}
+      SNOWFLAKE_TABLE: ${SNOWFLAKE_TABLE:-WH_POWERBI}
+
+      # Mapeo de columnas
+      COL_DATE: ${COL_DATE:-FECHA}
+      COL_AMOUNT: ${COL_AMOUNT:-MONTO}
+      COL_REGION: ${COL_REGION:-REGION}
+      COL_CHANNEL: ${COL_CHANNEL:-CANAL}
+      COL_CATEGORY: ${COL_CATEGORY:-CATEGORIA}
+      COL_PRODUCT: ${COL_PRODUCT:-PRODUCTO}
+      COL_CUSTOMER: ${COL_CUSTOMER:-CLIENTE}
+      COL_QUANTITY: ${COL_QUANTITY:-CANTIDAD}
+      COL_TRANSACTION_ID: ${COL_TRANSACTION_ID:-ID_TRANSACCION}
+
+      # Cache y Scheduler
+      CACHE_TTL_HOURS: ${CACHE_TTL_HOURS:-6}
+      REFRESH_HOUR: ${REFRESH_HOUR:-3}
+      REFRESH_MINUTE: ${REFRESH_MINUTE:-0}
+
+      # API Config
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ORIGINS: http://localhost:5173,http://frontend:5173,http://localhost:3000
+
+    # Network
+    networks:
+      - bi-ventas-network
+
+    # Restart policy para mantener el servicio activo
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Recursos (opcional, ajustar según disponibilidad)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 1G
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 512M
+
+  # ========================================
+  # FRONTEND - React + Nginx
+  # ========================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: bi-ventas-frontend
+    ports:
+      - "5173:5173"  # Vite dev/prod
+      - "3000:3000"  # Fallback (opcional)
+
+    # Network
+    networks:
+      - bi-ventas-network
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+    # Logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Dependencia con backend
+    depends_on:
+      backend:
+        condition: service_healthy
+
+    # Recursos (opcional)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 512M
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 256M
+
+# ==========================================
+# NETWORK - Comunicación interna
+# ==========================================
+networks:
+  bi-ventas-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ==========================================
+# VOLÚMENES (opcional para desarrollo)
+# ==========================================
+volumes:
+  backend-cache:
+    driver: local
+  frontend-build:
+    driver: local
