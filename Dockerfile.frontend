@@ -6,8 +6,8 @@ WORKDIR /app
 # Copiar archivos de dependencias
 COPY frontend/package.json frontend/package-lock.json* ./
 
-# Instalar dependencias
-RUN npm ci
+# Instalar dependencias (con legacy-peer-deps para resolver conflictos)
+RUN npm ci --legacy-peer-deps
 
 # Copiar código fuente
 COPY frontend/ .

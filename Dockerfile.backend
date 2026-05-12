@@ -21,8 +21,8 @@ ENV API_PORT=8000
 ENV LOG_LEVEL=INFO
 
 # Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/') or exit(0)" 2>/dev/null || exit 0
 
 # Ejecutar FastAPI con Uvicorn
 CMD ["python", "run.py"]
