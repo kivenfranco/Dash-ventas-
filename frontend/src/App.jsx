@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { Layout }            from './components/layout/Layout'
 import { LoginView }         from './pages/LoginView'
+import { HomeView }          from './pages/HomeView'
 import { ResumenView }       from './pages/ResumenView'
 import { TendenciaView }     from './pages/TendenciaView'
 import { RegionesView }      from './pages/RegionesView'
@@ -66,7 +67,8 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index              element={<ResumenView />}    />
+          <Route index              element={<HomeView />}       />
+          <Route path="resumen"     element={<ResumenView />}    />
           <Route path="tendencia"   element={<TendenciaView />}  />
           <Route path="regiones"    element={<RegionesView />}   />
           <Route path="vendedores"  element={<VendedoresView />} />

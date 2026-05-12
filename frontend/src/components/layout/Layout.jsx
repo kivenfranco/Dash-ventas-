@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { FilterProvider } from '../../context/FilterContext'
 import { GlobalFilters } from '../filters/GlobalFilters'
 import { useAuth } from '../../context/AuthContext'
@@ -15,8 +15,10 @@ import {
 } from 'lucide-react'
 
 const TABS = [
+  // ── 0. Inicio ─────────────────────────────────────────────────────────────
+  { to: '/',               label: 'Inicio',           icon: LayoutDashboard  },
   // ── 1. Monitoreo diario ───────────────────────────────────────────────────
-  { to: '/',               label: 'Resumen',          icon: LayoutDashboard  },
+  { to: '/resumen',        label: 'Resumen',          icon: BarChart2        },
   { to: '/tendencia',      label: 'Tendencia',         icon: TrendingUp       },
   { to: '/alertas',        label: 'Alertas',           icon: BellRing         },
   { to: '/anomalias',      label: 'Anomalías',         icon: Zap              },
@@ -203,11 +205,13 @@ function TabBar({ onRefresh, refreshing }) {
     <header className="fixed top-0 left-0 right-0 z-50 bg-surface-900 border-b border-surface-700">
       {/* Brand row */}
       <div className="flex items-center justify-between px-6 h-12 border-b border-surface-700/50">
-        <div className="flex items-center gap-3">
+        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
           <img src={logoAlico} alt="ALICO" className="h-7 w-7 rounded-md object-contain" />
-          <span className="font-bold text-slate-100 text-sm tracking-wide">Centro de Inteligencia de negocio</span>
-          <span className="text-slate-600 text-xs">ALICO SAS BIC</span>
-        </div>
+          <div className="flex flex-col md:flex-row md:items-center md:gap-2">
+            <span className="font-bold text-slate-100 text-sm tracking-wide">Centro de Inteligencia de Negocio</span>
+            <span className="text-slate-600 text-[10px] md:text-xs uppercase tracking-tighter">ALICO SAS BIC</span>
+          </div>
+        </Link>
         <div className="flex items-center gap-3">
           <SearchBar />
           <span className="text-xs text-slate-500">{new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
@@ -255,6 +259,7 @@ function TabBar({ onRefresh, refreshing }) {
 }
 
 export function Layout() {
+  const location                      = useLocation()
   const [refreshKey, setRefreshKey]   = useState(0)
   const [refreshing, setRefreshing]   = useState(false)
   const [showFilters, setShowFilters] = useState(true)
@@ -271,10 +276,12 @@ export function Layout() {
       <div className="min-h-screen bg-surface-950">
         <TabBar onRefresh={handleRefresh} refreshing={refreshing} />
         <main className="pt-[92px]">
-          {/* Global filters bar */}
-          <div className="border-b border-surface-700/50 bg-surface-900/80 backdrop-blur">
-            <GlobalFilters collapsed={!showFilters} onToggle={() => setShowFilters((s) => !s)} />
-          </div>
+          {/* Global filters bar - Hide on Home page */}
+          {location.pathname !== '/' && (
+            <div className="border-b border-surface-700/50 bg-surface-900/80 backdrop-blur">
+              <GlobalFilters collapsed={!showFilters} onToggle={() => setShowFilters((s) => !s)} />
+            </div>
+          )}
           <div className="p-5 max-w-[1800px] mx-auto">
             <Outlet context={{ refreshKey }} />
           </div>
