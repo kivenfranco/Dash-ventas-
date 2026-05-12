@@ -58,7 +58,7 @@ export function ProductosView() {
   const { filters }    = useFilters()
   const [seg, setSeg]  = useState('linea_negocio')
 
-  const { data, loading } = useData(() => api.segments(filters, seg, 20), [filters, refreshKey, seg])
+  const { data, loading } = useData(() => api.segments(filters, seg, 50), [filters, refreshKey, seg])
   const rows = data?.data || []
 
   const hasPP      = HAS_PP.has(seg)

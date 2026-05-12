@@ -28,3 +28,9 @@ frontend/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Internal / Scratch
+backend/app/brain/
+scratch/
+.tempmediaStorage/
+~$*.xlsx

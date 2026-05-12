@@ -10,6 +10,48 @@ import {
   ResponsiveContainer, Cell, Legend,
 } from 'recharts'
 
+const DEPARTAMENTOS_COORD = {
+  'ANTIOQUIA': [6.2518, -75.5636],
+  'BOGOTA': [4.6097, -74.0817],
+  'VALLE': [3.4516, -76.5320],
+  'ATLANTICO': [10.9685, -74.7813],
+  'SANTANDER': [7.1193, -73.1227],
+  'CUNDINAMARCA': [4.7373, -74.2641],
+  'BOLIVAR': [10.3910, -75.4794],
+  'NORTE DE SANTANDER': [7.8939, -72.5078],
+  'RISARALDA': [4.8133, -75.6961],
+  'CALDAS': [5.0703, -75.5138],
+  'TOLIMA': [4.4389, -75.2322],
+  'NARIÑO': [1.2136, -77.2811],
+  'BOYACA': [5.5353, -73.3678],
+  'HUILA': [2.9273, -75.2819],
+  'QUINDIO': [4.5339, -75.6811],
+  'META': [4.1420, -73.6266],
+  'CESAR': [10.4631, -73.2532],
+  'CORDOBA': [8.7480, -75.8814],
+  'SUCRE': [9.3047, -75.3978],
+  'MAGDALENA': [11.2408, -74.1990],
+  'CAUCA': [2.4382, -76.6132],
+  'LA GUAJIRA': [11.5444, -72.9072],
+  'CASANARE': [5.3378, -72.3959],
+  'CHOCO': [5.6919, -76.6582],
+  'PUTUMAYO': [1.1475, -76.6478],
+  'CAQUETA': [1.6144, -75.6062],
+  'GUAVIARE': [2.5729, -72.6333],
+  'ARAUCA': [7.0847, -70.7591],
+  'AMAZONAS': [-4.2153, -69.9406],
+  'GUAINIA': [3.8653, -67.9239],
+  'VICHADA': [4.1833, -68.2333],
+  'VAUPES': [1.1983, -70.2361],
+  'SAN ANDRES': [12.5847, -81.7006],
+  'ZONA ANTIOQUIA': [6.2518, -75.5636],
+  'ZONA BOGOTA': [4.6097, -74.0817],
+  'ZONA VALLE': [3.4516, -76.5320],
+  'ZONA CARIBE': [10.9685, -74.7813],
+  'ZONA SANTANDERES': [7.1193, -73.1227],
+  'ZONA EJE CAFETERO': [4.8133, -75.6961]
+}
+
 const SEG_OPTS = [
   { key: 'region',           label: 'Región' },
   { key: 'grupo_comercial',  label: 'Grupo Comercial' },
@@ -40,10 +82,24 @@ export function RegionesView() {
   const { filters }    = useFilters()
   const [seg, setSeg]  = useState('region')
 
-  const { data, loading } = useData(() => api.segments(filters, seg, 20), [filters, refreshKey, seg])
+  const { data, loading, error } = useData(() => api.segments(filters, seg, 20), [filters, refreshKey, seg])
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[400px] card border-red-500/50 bg-red-500/5">
+        <p className="text-red-400 font-medium">Error al cargar datos de regiones</p>
+        <p className="text-slate-500 text-xs mt-2">{error}</p>
+        <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-surface-700 hover:bg-surface-600 text-slate-200 rounded-lg text-xs transition-colors">
+          Reintentar
+        </button>
+      </div>
+    )
+  }
 
   const rows = data?.data || []
+  const hasPP = rows.some(r => r.presupuesto != null && r.presupuesto > 0)
   const totalVN  = rows.reduce((s, d) => s + (d.ventas_netas || 0), 0)
+  const totalPP  = rows.reduce((s, d) => s + (d.presupuesto || 0), 0)
   const totalAnt = rows.reduce((s, d) => s + (d.ventas_netas_ant || 0), 0)
   const yoyTotal = totalAnt > 0 ? ((totalVN / totalAnt - 1) * 100) : null
 
@@ -73,7 +129,8 @@ export function RegionesView() {
       {/* Summary */}
       <div className="flex flex-wrap gap-3">
         <Chip label="Total ventas" value={fmtCOP(totalVN)} color="text-brand-400" />
-        <Chip label="Año anterior" value={fmtCOP(totalAnt)} color="text-slate-400" />
+        {hasPP && <Chip label="Presupuesto" value={fmtCOP(totalPP)} color="text-amber-400" />}
+        {hasPP && <Chip label="Cump. PP" value={fmtPct(totalPP > 0 ? totalVN/totalPP*100 : null, 1)} color={cumpColor(totalPP > 0 ? totalVN/totalPP*100 : null)} />}
         <Chip label="Variación YoY" value={fmtPct(yoyTotal)} color={pctColor(yoyTotal)} />
         <Chip label="Segmentos" value={rows.length} color="text-cyan-400" />
       </div>
@@ -99,6 +156,40 @@ export function RegionesView() {
         </div>
       </div>
 
+      {/* Analysis Chart */}
+      {seg === 'region' && !loading && (
+        <div className="card h-[400px]">
+          <h2 className="text-sm font-semibold text-slate-200 mb-0.5">Distribución Geográfica</h2>
+          <p className="text-xs text-slate-500 mb-4">Ventas por región en el periodo seleccionado</p>
+          <div className="w-full h-[320px] rounded-xl overflow-hidden border border-surface-700 bg-surface-900/50 p-4">
+            {rows.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={rows.slice(0, 10)} margin={{ top: 10, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                  <XAxis dataKey="dimension" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={fmtCOP} />
+                  <Tooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
+                    itemStyle={{ fontSize: '12px' }}
+                    formatter={(v) => fmtCOP(v)}
+                  />
+                  <Bar dataKey="ventas_netas" name="Ventas" radius={[4, 4, 0, 0]} barSize={hasPP ? 25 : 40}>
+                    {rows.slice(0, 10).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={PALETTE[index % PALETTE.length]} fillOpacity={0.8} />
+                    ))}
+                  </Bar>
+                  {hasPP && <Bar dataKey="presupuesto" name="Presupuesto" fill="#f59e0b" fillOpacity={0.6} radius={[4, 4, 0, 0]} barSize={25} />}
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-500 text-xs">
+                No hay datos disponibles para mostrar
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Detail table */}
       <div className="card">
         <h2 className="text-sm font-semibold text-slate-200 mb-4">
@@ -112,6 +203,8 @@ export function RegionesView() {
                 <th className="pb-3 font-medium">{SEG_OPTS.find((s) => s.key === seg)?.label}</th>
                 <th className="pb-3 font-medium text-right">Ventas Netas</th>
                 <th className="pb-3 font-medium text-right">Part %</th>
+                {hasPP && <th className="pb-3 font-medium text-right">Presupuesto</th>}
+                {hasPP && <th className="pb-3 font-medium text-right">Cump PP</th>}
                 <th className="pb-3 font-medium text-right">Año Anterior</th>
                 <th className="pb-3 font-medium text-right">Var YoY</th>
                 <th className="pb-3 font-medium text-right">Mes Ant.</th>
@@ -139,6 +232,8 @@ export function RegionesView() {
                       <span className="text-slate-400 w-9 text-right">{fmtPct(d.participacion_pct, 1)}</span>
                     </div>
                   </td>
+                  {hasPP && <td className="py-2.5 text-right text-amber-400">{d.presupuesto > 0 ? fmtCOP(d.presupuesto) : '—'}</td>}
+                  {hasPP && <td className={`py-2.5 text-right font-bold ${cumpColor(d.cump_pp_pct)}`}>{d.cump_pp_pct != null ? fmtPct(d.cump_pp_pct, 1) : '—'}</td>}
                   <td className="py-2.5 text-right text-slate-500">{d.ventas_netas_ant != null ? fmtCOP(d.ventas_netas_ant) : '—'}</td>
                   <td className={`py-2.5 text-right font-semibold ${pctColor(d.variacion_yoy_pct)}`}>{d.variacion_yoy_pct != null ? fmtPct(d.variacion_yoy_pct) : '—'}</td>
                   <td className="py-2.5 text-right text-slate-500">{d.ventas_mes_ant != null ? fmtCOP(d.ventas_mes_ant) : '—'}</td>
@@ -152,6 +247,8 @@ export function RegionesView() {
                   <td className="py-2.5" colSpan={2}>TOTAL</td>
                   <td className="py-2.5 text-right text-brand-300">{fmtCOP(totalVN)}</td>
                   <td className="py-2.5 text-right text-slate-400">100%</td>
+                  {hasPP && <td className="py-2.5 text-right text-amber-400">{fmtCOP(totalPP)}</td>}
+                  {hasPP && <td className={`py-2.5 text-right font-bold ${cumpColor(totalPP > 0 ? totalVN/totalPP*100 : null)}`}>{totalPP > 0 ? fmtPct(totalVN/totalPP*100, 1) : '—'}</td>}
                   <td className="py-2.5 text-right text-slate-500">{fmtCOP(totalAnt)}</td>
                   <td className={`py-2.5 text-right ${pctColor(yoyTotal)}`}>{fmtPct(yoyTotal)}</td>
                   <td colSpan={4} />

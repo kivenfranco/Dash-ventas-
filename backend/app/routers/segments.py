@@ -50,7 +50,7 @@ def _build_sql(cfg, group_by, ano, mes, region, vendedor, grupo_comercial, plant
             [f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO"],
         ),
         "unidad_medida_venta": (
-            "fv.UNIDAD_MEDIDA_VENTA",
+            "UPPER(TRIM(fv.UNIDAD_MEDIDA_VENTA))",
             [],
         ),
         "descripcion_parte": (
@@ -180,10 +180,10 @@ def get_segments(
                 c.append("MES_NUM = %s"); p.append(mes)
             return c, p
 
-        if group_by in ("linea_negocio", "grupo_comercial"):
-            col = {"linea_negocio": "LINEA_NEGOCIO", "grupo_comercial": "GRUPO_COMERCIAL"}[group_by]
+        if group_by in ("linea_negocio", "grupo_comercial", "region"):
+            col = {"linea_negocio": "LINEA_NEGOCIO", "grupo_comercial": "GRUPO_COMERCIAL", "region": "REGION"}[group_by]
             c, p = _pp_base_cond()
-            if region:
+            if region and group_by != "region":
                 c.append("REGION = %s"); p.append(region)
             if planta:
                 c.append("PLANTA = %s"); p.append(planta)
@@ -191,10 +191,10 @@ def get_segments(
                 c.append("GRUPO_COMERCIAL = %s"); p.append(grupo_comercial)
             if excl_exportacion:
                 c.append("UPPER(REGION) NOT LIKE '%%EXPORTACION%%'")
-            df_pp = connector.query(
-                f"SELECT {col} AS dimension, COALESCE(SUM(PRESUPUESTO_MES),0) AS presupuesto "
-                f"FROM {cfg.T('PP_REGION_PLANTA_GRUPO')} WHERE {' AND '.join(c)} GROUP BY 1", p
-            )
+            sql_pp = f"SELECT {col} AS dimension, COALESCE(SUM(PRESUPUESTO_MES),0) AS presupuesto FROM {cfg.T('PP_REGION_PLANTA_GRUPO')} WHERE {' AND '.join(c)} GROUP BY 1"
+            logger.info(f"DEBUG BUDGET SQL: {sql_pp} | Params: {p}")
+            df_pp = connector.query(sql_pp, p)
+            logger.info(f"DEBUG BUDGET ROWS: {len(df_pp)}")
             if not df_pp.empty:
                 df_pp.columns = [c2.lower() for c2 in df_pp.columns]
 
@@ -230,19 +230,25 @@ def get_segments(
         logger.error("Segments error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc))
 
-    # Merge comparison data
+    # Pre-process dimension strings to avoid merge failures due to spaces
+    df["dimension"] = df["dimension"].astype(str).str.strip().str.upper()
     if df_ant is not None:
+        df_ant["dimension"] = df_ant["dimension"].astype(str).str.strip().str.upper()
         df = df.merge(df_ant[["dimension", "ventas_netas_ant"]], on="dimension", how="left")
         df["ventas_netas_ant"] = df["ventas_netas_ant"].fillna(0)
+    
     if df_mom is not None:
+        df_mom["dimension"] = df_mom["dimension"].astype(str).str.strip().str.upper()
         df = df.merge(df_mom[["dimension", "ventas_mes_ant"]], on="dimension", how="left")
         df["ventas_mes_ant"] = df["ventas_mes_ant"].fillna(0)
 
     # Merge PP data
     if df_pp is not None and not df_pp.empty:
+        df_pp["dimension"] = df_pp["dimension"].astype(str).str.strip().str.upper()
         df = df.merge(df_pp, on="dimension", how="left")
         df["presupuesto"] = df["presupuesto"].fillna(0)
     if df_pp_cant is not None and not df_pp_cant.empty:
+        df_pp_cant["dimension"] = df_pp_cant["dimension"].astype(str).str.strip().str.upper()
         df = df.merge(df_pp_cant, on="dimension", how="left")
         df["presupuesto_cantidad"] = df["presupuesto_cantidad"].fillna(0)
 

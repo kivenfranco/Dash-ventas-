@@ -106,3 +106,26 @@ def get_mercados():
     cfg = get_settings()
     sql = f"SELECT DISTINCT MERCADO FROM {cfg.TM('DIM_MERCADO')} WHERE MERCADO IS NOT NULL ORDER BY 1"
     return {"mercados": _fetch("f:mercados", sql, "MERCADO")}
+
+
+@router.get("/clientes")
+def get_clientes():
+    """Return client list (NUMERO_CLIENTE + NOMBRE) for searchable dropdown."""
+    cfg = get_settings()
+    hit = cache.get("f:clientes")
+    if hit:
+        return {"clientes": hit}
+    try:
+        df = connector.query(f"""
+            SELECT dc.NUMERO_CLIENTE, dc.NOMBRE
+            FROM {cfg.TM('DIM_CLIENTE')} dc
+            WHERE dc.NOMBRE IS NOT NULL
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY dc.NUMERO_CLIENTE ORDER BY dc.NUMERO_CLIENTE) = 1
+            ORDER BY dc.NOMBRE
+        """)
+        clientes = df.to_dict(orient="records")
+    except Exception as exc:
+        logger.error("filter clientes failed: %s", exc)
+        raise HTTPException(status_code=503, detail=str(exc))
+    cache.set("f:clientes", clientes)
+    return {"clientes": clientes}

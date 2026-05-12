@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 @router.get("")
 def get_trends(
     ano: int = Query(default_factory=lambda: date.today().year),
+    mes: Optional[int] = Query(None, ge=1, le=12),
+    mes_fin: Optional[int] = Query(None, ge=1, le=12),
     region: Optional[str] = None,
     vendedor: Optional[str] = None,
     grupo_comercial: Optional[str] = None,
@@ -58,6 +60,9 @@ def get_trends(
 
     join_str = " ".join(dim_joins)
     extra_where = (" AND " + " AND ".join(dim_cond)) if dim_cond else ""
+    
+    max_mes = mes_fin if mes_fin else (mes if mes else 12)
+    month_filter = f" AND fv.PERIODO_FISCAL <= {max_mes}"
 
     _mes_case = (
         "CASE fv.PERIODO_FISCAL "
@@ -77,7 +82,7 @@ def get_trends(
             COALESCE(SUM(fv.CANTIDAD),      0)  AS cantidad
         FROM {cfg.T('FACT_VENTAS')} fv
         {join_str}
-        WHERE fv.ANO_FISCAL = %s {extra_where}
+        WHERE fv.ANO_FISCAL = %s {extra_where} {month_filter}
         GROUP BY 1, 2
         ORDER BY 1
     """
@@ -104,7 +109,7 @@ def get_trends(
     pp_sql = f"""
         SELECT MES_NUM AS mes_num, COALESCE(SUM(PRESUPUESTO_MES),0) AS pp_mes
         FROM {cfg.T('PP_REGION_PLANTA_GRUPO')}
-        WHERE {' AND '.join(pp_cond)}
+        WHERE {' AND '.join(pp_cond)} AND MES_NUM <= {max_mes}
         GROUP BY 1 ORDER BY 1
     """
 

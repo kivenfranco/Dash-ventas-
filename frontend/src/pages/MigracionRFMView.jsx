@@ -5,7 +5,7 @@ import { api } from '../services/api'
 import { Users, UserPlus, RefreshCw, UserMinus, TrendingUp, TrendingDown } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, LabelList,
+  ResponsiveContainer, ReferenceLine, LabelList, Sankey
 } from 'recharts'
 
 const SEG_COLOR = {
@@ -22,12 +22,12 @@ const SEG_COLOR = {
 }
 
 const SEGMENTS_PREV = [
-  'Campeón','Cliente Leal','Potencial Leal','Cliente Reciente',
-  'En Riesgo','Necesita Atención','Hibernando','Perdido',
+  'Campeón', 'Cliente Leal', 'Potencial Leal', 'Cliente Reciente',
+  'En Riesgo', 'Necesita Atención', 'Hibernando', 'Perdido', 'Nuevo',
 ]
 const SEGMENTS_ACTUAL = [
-  'Campeón','Cliente Leal','Potencial Leal','Cliente Reciente',
-  'En Riesgo','Necesita Atención','Hibernando','Perdido (Inactivo)',
+  'Campeón', 'Cliente Leal', 'Potencial Leal', 'Cliente Reciente',
+  'En Riesgo', 'Necesita Atención', 'Hibernando', 'Perdido', 'Perdido (Inactivo)',
 ]
 
 const fmt = (v) => {
@@ -79,7 +79,7 @@ export function MigracionRFMView() {
       .then((d) => setData(d))
       .catch((e) => setError(e?.response?.data?.detail || 'Error al cargar migración RFM'))
       .finally(() => setLoading(false))
-  }, [filters.ano, filters.mes, refreshKey])
+  }, [filters, refreshKey])
 
   const ano       = data?.ano
   const anoPrev   = data?.ano_prev
@@ -128,6 +128,41 @@ export function MigracionRFMView() {
         perdidos: -(lost[seg] || 0),
       }))
       .filter((d) => d.ganados !== 0 || d.perdidos !== 0)
+  }, [matriz])
+
+  const sankeyData = useMemo(() => {
+    if (!matriz || matriz.length === 0) return null
+    const nodes = []
+    const links = []
+    const nodeMap = {}
+
+    SEGMENTS_PREV.forEach(s => {
+      const name = `${s} (Ant)`
+      nodes.push({ name, fill: SEG_COLOR[s] || '#94a3b8' })
+      nodeMap[name] = nodes.length - 1
+    })
+    
+    SEGMENTS_ACTUAL.forEach(s => {
+      const name = `${s} (Act)`
+      nodes.push({ name, fill: SEG_COLOR[s] || '#94a3b8' })
+      nodeMap[name] = nodes.length - 1
+    })
+
+    matriz.forEach(row => {
+      if (row.clientes > 0) {
+        const sKey = `${row.segmento_prev} (Ant)`
+        const tKey = `${row.segmento_actual} (Act)`
+        if (nodeMap[sKey] !== undefined && nodeMap[tKey] !== undefined) {
+          links.push({
+            source: nodeMap[sKey],
+            target: nodeMap[tKey],
+            value: row.clientes
+          })
+        }
+      }
+    })
+
+    return { nodes, links }
   }, [matriz])
 
   const cellBg = (prev, actual, clientes) => {
@@ -280,6 +315,47 @@ export function MigracionRFMView() {
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Sankey Diagram */}
+      {!loading && sankeyData && sankeyData.links.length > 0 && (
+        <div className="bg-surface-800 border border-surface-700 rounded-xl p-5 overflow-x-auto">
+          <p className="text-xs font-medium text-slate-300 mb-1">Diagrama de Flujos (Sankey)</p>
+          <p className="text-[10px] text-slate-500 mb-3">
+            Visualización de cómo los clientes han migrado entre el período anterior y el actual.
+          </p>
+          <div className="h-[400px] min-w-[700px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <Sankey
+                data={sankeyData}
+                node={{ stroke: '#1e293b', strokeWidth: 1 }}
+                nodePadding={30}
+                margin={{ left: 10, right: 10, top: 10, bottom: 10 }}
+                link={{ stroke: '#334155', fillOpacity: 0.3 }}
+              >
+                <Tooltip 
+                  content={({ payload }) => {
+                    if (!payload || !payload.length) return null
+                    const d = payload[0].payload
+                    return (
+                      <div className="bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-xs shadow-xl">
+                        {d.source && d.target ? (
+                          <p className="text-slate-200">
+                            <span className="font-semibold text-slate-400">{d.source.name}</span> →{' '}
+                            <span className="font-semibold text-slate-400">{d.target.name}</span>
+                            <br/><span className="text-brand-300 font-bold">{d.value}</span> clientes
+                          </p>
+                        ) : (
+                          <p className="text-slate-200 font-semibold">{d.name} <span className="text-brand-300">{d.value}</span></p>
+                        )}
+                      </div>
+                    )
+                  }}
+                />
+              </Sankey>
+            </ResponsiveContainer>
           </div>
         </div>
       )}

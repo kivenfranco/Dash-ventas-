@@ -112,7 +112,7 @@ export const api = {
 
   // ── Análisis avanzado ─────────────────────────────────────────────────────
   pvm:           (filters, groupBy) => http.get('/pvm', { params: { ...toParams(filters), group_by: groupBy || 'linea_negocio' } }).then((r) => r.data),
-  rfmMigracion:  (filters, topN) => http.get('/rfm-migracion', { params: { ano: filters.ano, ...(filters.mes ? { mes: filters.mes } : {}), top_n: topN || 500 } }).then((r) => r.data),
+  rfmMigracion:  (filters, topN) => http.get('/rfm-migracion', { params: { ...toParams(filters), top_n: topN || 500 } }).then((r) => r.data),
   estacionalidad:(filters, anosAtras) => http.get('/estacionalidad', { params: { ano: filters.ano, anos_atras: anosAtras || 4, ...( filters.excl_pvta ? { excl_pvta: true } : {}) } }).then((r) => r.data),
   riesgoCliente: (filters, topN) => http.get('/riesgo-cliente', { params: { ano: filters.ano, excl_pvta: filters.excl_pvta ?? true, top_n: topN || 200 } }).then((r) => r.data),
 
@@ -146,4 +146,5 @@ export const api = {
   filterPlantas:          () => http.get('/filters/plantas').then((r) => r.data.plantas),
   filterLineas:           () => http.get('/filters/lineas').then((r) => r.data.lineas),
   filterMercados:         () => http.get('/filters/mercados').then((r) => r.data.mercados),
+  filterClientes:         () => http.get('/filters/clientes').then((r) => r.data.clientes),
 }

@@ -61,7 +61,7 @@ export function GlobalFilters({ collapsed, onToggle }) {
   const rawFilters = _raw || filters
   const fav = useFavoritos(rawFilters, update)
 
-  const [opts, setOpts] = useState({ anos: [], regiones: [], vendedores: [], grupos: [], lineas: [], mercados: [] })
+  const [opts, setOpts] = useState({ anos: [], regiones: [], vendedores: [], grupos: [], lineas: [], mercados: [], clientes: [] })
   const [clienteInput, setClienteInput] = useState(filters.cliente || '')
   const debounceRef = useRef(null)
 
@@ -76,7 +76,8 @@ export function GlobalFilters({ collapsed, onToggle }) {
     Promise.allSettled([
       api.filterAnos(), api.filterRegiones(), api.filterVendedores(),
       api.filterGruposComerciales(), api.filterLineas(), api.filterMercados(),
-    ]).then(([anos, reg, vend, gc, ln, merc]) => {
+      api.filterClientes(),
+    ]).then(([anos, reg, vend, gc, ln, merc, cli]) => {
       setOpts({
         anos:       anos.status  === 'fulfilled' ? anos.value  : [],
         regiones:   reg.status   === 'fulfilled' ? reg.value   : [],
@@ -84,6 +85,7 @@ export function GlobalFilters({ collapsed, onToggle }) {
         grupos:     gc.status    === 'fulfilled' ? gc.value    : [],
         lineas:     ln.status    === 'fulfilled' ? ln.value    : [],
         mercados:   merc.status  === 'fulfilled' ? merc.value  : [],
+        clientes:   cli.status   === 'fulfilled' ? cli.value   : [],
       })
     })
   }, [])
@@ -279,38 +281,43 @@ export function GlobalFilters({ collapsed, onToggle }) {
           {/* Multi-select dropdowns */}
           <MultiDimSelect
             label="Región"
+            dimKey="region"
             selected={selRegiones}
             options={opts.regiones}
             onToggle={(v) => toggleDim('region', v)}
-            onClear={() => update({ region: [] })}
+            update={update}
           />
           <MultiDimSelect
             label="Vendedor"
+            dimKey="vendedor"
             selected={selVendedores}
             options={opts.vendedores.map((v) => ({ value: v.CODIGO_VENDEDOR || v.codigo_vendedor || v, label: v.NOMBRE || v.nombre || v }))}
             onToggle={(v) => toggleDim('vendedor', v)}
-            onClear={() => update({ vendedor: [] })}
+            update={update}
           />
           <MultiDimSelect
             label="Grupo Comerc."
+            dimKey="grupo_comercial"
             selected={selGrupos}
             options={opts.grupos}
             onToggle={(v) => toggleDim('grupo_comercial', v)}
-            onClear={() => update({ grupo_comercial: [] })}
+            update={update}
           />
           <MultiDimSelect
             label="Línea Neg."
+            dimKey="planta"
             selected={selPlantas}
             options={opts.lineas}
             onToggle={(v) => toggleDim('planta', v)}
-            onClear={() => update({ planta: [] })}
+            update={update}
           />
           <MultiDimSelect
             label="Mercado"
+            dimKey="mercado"
             selected={selMercados}
             options={opts.mercados}
             onToggle={(v) => toggleDim('mercado', v)}
-            onClear={() => update({ mercado: [] })}
+            update={update}
           />
 
           {/* Comparador de período */}
@@ -346,20 +353,13 @@ export function GlobalFilters({ collapsed, onToggle }) {
             )}
           </div>
 
-          {/* Cliente */}
-          <div className="flex items-center gap-1.5">
-            <label className="text-xs text-slate-400 whitespace-nowrap">Cliente</label>
-            <div className="relative">
-              <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-              <input
-                type="text"
-                className="bg-surface-700 border border-surface-600 text-slate-100 rounded-lg pl-6 pr-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 w-36 placeholder-slate-500"
-                placeholder="buscar nombre..."
-                value={clienteInput}
-                onChange={(e) => handleClienteChange(e.target.value)}
-              />
-            </div>
-          </div>
+          {/* Cliente searchable dropdown */}
+          <ClienteSearch
+            clientes={opts.clientes}
+            selected={filters.cliente}
+            onSelect={(nombre) => update({ cliente: nombre })}
+            onClear={() => update({ cliente: '' })}
+          />
         </div>
       )}
 
@@ -373,16 +373,23 @@ export function GlobalFilters({ collapsed, onToggle }) {
             { key: 'planta',          label: 'Línea',    values: selPlantas     },
             { key: 'mercado',         label: 'Mercado',  values: selMercados    },
           ].flatMap(({ key, label, values }) =>
-            values.map((v) => (
-              <span
-                key={`${key}-${v}`}
-                onClick={() => removeDimValue(key, v)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-brand-500/15 text-brand-300 cursor-pointer hover:bg-red-500/20 hover:text-red-400 transition-colors"
-              >
-                <span className="text-slate-500">{label}:</span> {v}
-                <X size={10} />
-              </span>
-            ))
+            values.map((v) => {
+              let displayVal = v
+              if (key === 'vendedor') {
+                const found = opts.vendedores.find(ov => (ov.CODIGO_VENDEDOR || ov.codigo_vendedor) === v)
+                if (found) displayVal = found.NOMBRE || found.nombre
+              }
+              return (
+                <span
+                  key={`${key}-${v}`}
+                  onClick={() => removeDimValue(key, v)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-brand-500/15 text-brand-300 cursor-pointer hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                >
+                  <span className="text-slate-500">{label}:</span> {displayVal}
+                  <X size={10} />
+                </span>
+              )
+            })
           )}
           {filters.cliente && (
             <span
@@ -422,7 +429,7 @@ function Pill({ label, active, edge, onClick, accent = false }) {
   )
 }
 
-function MultiDimSelect({ label, selected, options, onToggle, onClear }) {
+function MultiDimSelect({ label, dimKey, selected, options, onToggle, update }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef(null)
@@ -444,6 +451,19 @@ function MultiDimSelect({ label, selected, options, onToggle, onClear }) {
     : normalized
 
   const hasSelection = selected.length > 0
+  const allFilteredSelected = filtered.length > 0 && filtered.every(f => selected.includes(f.val))
+
+  const handleToggleAll = (e) => {
+    e.stopPropagation()
+    const visibleVals = filtered.map(f => f.val)
+    if (allFilteredSelected) {
+      // Remove all visible from selection
+      update({ [dimKey]: selected.filter(s => !visibleVals.includes(s)) })
+    } else {
+      // Add all visible to selection
+      update({ [dimKey]: Array.from(new Set([...selected, ...visibleVals])) })
+    }
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -465,25 +485,34 @@ function MultiDimSelect({ label, selected, options, onToggle, onClear }) {
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1 left-0 z-50 w-56 bg-surface-800 border border-surface-600 rounded-xl shadow-2xl overflow-hidden">
-          {/* Search */}
-          <div className="p-2 border-b border-surface-700">
+        <div className="absolute top-full mt-1 left-0 z-50 w-64 bg-surface-800 border border-surface-600 rounded-xl shadow-2xl overflow-hidden flex flex-col">
+          {/* Header with Toggle All */}
+          <div className="p-2 border-b border-surface-700 space-y-2 bg-surface-800/80 backdrop-blur">
+            <div className="flex items-center justify-between px-1">
+              <button
+                onClick={handleToggleAll}
+                className="text-[10px] uppercase tracking-wider font-bold text-brand-400 hover:text-brand-300 transition-colors"
+              >
+                {allFilteredSelected ? 'Deseleccionar todos' : 'Seleccionar todos'}
+              </button>
+              <span className="text-[10px] text-slate-500">{filtered.length} items</span>
+            </div>
             <div className="relative">
               <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
               <input
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar…"
+                placeholder={`Buscar ${label.toLowerCase()}…`}
                 className="w-full bg-surface-700 border border-surface-600 text-slate-200 text-xs rounded-lg pl-6 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-500 placeholder-slate-500"
               />
             </div>
           </div>
 
           {/* Options */}
-          <div className="max-h-52 overflow-y-auto">
+          <div className="max-h-60 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center py-3">Sin resultados</p>
+              <p className="text-xs text-slate-500 text-center py-4">Sin resultados</p>
             ) : (
               filtered.map(({ val, lbl }) => {
                 const active = selected.includes(val)
@@ -492,11 +521,11 @@ function MultiDimSelect({ label, selected, options, onToggle, onClear }) {
                     key={val}
                     onClick={() => onToggle(val)}
                     className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer text-xs transition-colors ${
-                      active ? 'bg-brand-600/15 text-brand-300' : 'text-slate-300 hover:bg-surface-700'
+                      active ? 'bg-brand-600/10 text-brand-300' : 'text-slate-300 hover:bg-surface-700/50'
                     }`}
                   >
-                    <div className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
-                      active ? 'bg-brand-500 border-brand-500' : 'border-slate-500'
+                    <div className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-all ${
+                      active ? 'bg-brand-500 border-brand-500' : 'border-slate-600 bg-surface-700'
                     }`}>
                       {active && <Check size={9} className="text-white" />}
                     </div>
@@ -507,14 +536,122 @@ function MultiDimSelect({ label, selected, options, onToggle, onClear }) {
             )}
           </div>
 
-          {/* Clear action */}
+          {/* Footer */}
           {hasSelection && (
-            <div className="p-2 border-t border-surface-700">
+            <div className="p-2 border-t border-surface-700 bg-surface-800/80">
               <button
-                onClick={() => { onClear(); setOpen(false) }}
-                className="w-full text-xs text-slate-400 hover:text-red-400 py-1 transition-colors"
+                onClick={(e) => { e.stopPropagation(); update({ [dimKey]: [] }); setOpen(false) }}
+                className="w-full text-[10px] uppercase font-bold text-slate-500 hover:text-red-400 py-1 transition-colors"
               >
                 Limpiar selección ({selected.length})
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ClienteSearch({ clientes, selected, onSelect, onClear }) {
+  const [open, setOpen]     = useState(false)
+  const [search, setSearch] = useState('')
+  const ref                 = useRef(null)
+
+  useEffect(() => {
+    const h = (e) => { if (!ref.current?.contains(e.target)) { setOpen(false); setSearch('') } }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const normalized = (clientes || []).map((c) => {
+    const num  = String(c.NUMERO_CLIENTE ?? c.numero_cliente ?? '')
+    const name = String(c.NOMBRE ?? c.nombre ?? num)
+    return { num, name }
+  })
+
+  const filtered = search.length >= 2
+    ? normalized.filter(({ name, num }) =>
+        name.toLowerCase().includes(search.toLowerCase()) ||
+        num.toLowerCase().includes(search.toLowerCase())
+      ).slice(0, 30)
+    : []
+
+  const handleSelect = (name) => {
+    onSelect(name)
+    setSearch('')
+    setOpen(false)
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+          selected
+            ? 'bg-brand-600/20 text-brand-300 border-brand-500/40'
+            : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-slate-100'
+        }`}
+      >
+        <Search size={11} />
+        {selected ? `${selected.length > 18 ? selected.slice(0, 18) + '…' : selected}` : 'Cliente'}
+        {selected && (
+          <span
+            onClick={(e) => { e.stopPropagation(); onClear(); setSearch('') }}
+            className="ml-1 hover:text-red-400"
+          >
+            <X size={10} />
+          </span>
+        )}
+        <ChevronDown size={11} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-50 w-64 bg-surface-800 border border-surface-600 rounded-xl shadow-2xl overflow-hidden">
+          {/* Search input */}
+          <div className="p-2 border-b border-surface-700">
+            <div className="relative">
+              <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar cliente…"
+                className="w-full bg-surface-700 border border-surface-600 text-slate-200 text-xs rounded-lg pl-6 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-500 placeholder-slate-500"
+              />
+            </div>
+          </div>
+
+          {/* Results */}
+          <div className="max-h-52 overflow-y-auto">
+            {search.length < 2 ? (
+              <p className="text-xs text-slate-500 text-center py-3">Escribe al menos 2 letras…</p>
+            ) : filtered.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-3">Sin resultados</p>
+            ) : (
+              filtered.map(({ num, name }) => (
+                <div
+                  key={num}
+                  onClick={() => handleSelect(name)}
+                  className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-xs transition-colors ${
+                    selected === name ? 'bg-brand-600/15 text-brand-300' : 'text-slate-300 hover:bg-surface-700'
+                  }`}
+                >
+                  <span className="text-slate-500 w-12 flex-shrink-0 font-mono">{num}</span>
+                  <span className="truncate">{name}</span>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Clear */}
+          {selected && (
+            <div className="p-2 border-t border-surface-700">
+              <button
+                onClick={() => { onClear(); setOpen(false); setSearch('') }}
+                className="w-full text-xs text-slate-400 hover:text-red-400 py-1 transition-colors"
+              >
+                Limpiar cliente
               </button>
             </div>
           )}

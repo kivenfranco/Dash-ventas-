@@ -56,9 +56,22 @@ def _dim_filters(cfg, region, vendedor, grupo_comercial, planta, excl_exportacio
     if excl_exportacion:
         if not any("DIM_DOMICILIO" in j for j in joins):
             joins.append(f"LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY")
-        cond.append("(UPPER(dd.DESCRIPCION_REGION) NOT LIKE '%%EXPORTACION%%' OR dd.DESCRIPCION_REGION IS NULL)")
+        joins.append(
+            f"LEFT JOIN (SELECT VENDEDOR, MERCADO FROM "
+            f"(SELECT VENDEDOR, MERCADO, ROW_NUMBER() OVER (PARTITION BY VENDEDOR ORDER BY ANO DESC, MES_NUM DESC) AS rn "
+            f"FROM {cfg.T('PP_VENDEDOR_VALOR')}) t WHERE t.rn = 1) vm_excl ON fv.CODIGO_VENDEDOR = vm_excl.VENDEDOR"
+        )
+        cond.append("(UPPER(dd.DESCRIPCION_REGION) NOT LIKE '%%EXPORTACION%%' AND UPPER(COALESCE(vm_excl.MERCADO, '')) NOT LIKE '%%EXPORTACION%%')")
+
     if excl_pvta:
-        cond.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)")
+        # Excludes PVTA*, PBOGOTA, PTVAPAST, etc. and anything with 'PUNTO DE VENTA' in the name
+        joins.append(f"LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv_pvta ON fv.CODIGO_VENDEDOR = dv_pvta.CODIGO_VENDEDOR")
+        cond.append("""(
+            (UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' 
+             AND UPPER(fv.CODIGO_VENDEDOR) NOT IN ('PBOGOTA', 'PTVAPAST', 'PBOGMONTE', 'PBOG')
+             AND UPPER(COALESCE(dv_pvta.NOMBRE, '')) NOT LIKE '%%PUNTO DE VENTA%%'
+            ) OR fv.CODIGO_VENDEDOR IS NULL
+        )""")
     seen, uniq = set(), []
     for j in joins:
         if j not in seen:

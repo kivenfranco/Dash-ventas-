@@ -184,8 +184,22 @@ export function ClientesView() {
           <div className={`h-60 ${eL ? 'opacity-40 animate-pulse' : ''}`}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={estadoData} cx="50%" cy="50%" innerRadius={55} outerRadius={95}
-                  dataKey="value" nameKey="name" paddingAngle={3}>
+                <Pie
+                  data={estadoData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={95}
+                  dataKey="value"
+                  nameKey="name"
+                  paddingAngle={3}
+                  onClick={(data) => {
+                    // Find the original status key from the label/config
+                    const key = Object.keys(ESTADO_CFG).find(k => ESTADO_CFG[k].label === data.name)
+                    if (key) toggleEstado(key)
+                  }}
+                  className="cursor-pointer focus:outline-none"
+                >
                   {estadoData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <Tooltip formatter={(v, n) => [fmtInt(v), n]} contentStyle={{ background: '#161b27', border: '1px solid #1f2937', borderRadius: 8, fontSize: 11 }} />
@@ -197,14 +211,21 @@ export function ClientesView() {
 
         <div className="card">
           <h2 className="text-sm font-semibold text-slate-200 mb-0.5">Detalle por Estado</h2>
-          <p className="text-xs text-slate-500 mb-4">conteo y % del total</p>
+          <p className="text-xs text-slate-500 mb-4">conteo y % del total (haz clic para filtrar)</p>
           <div className="space-y-3">
             {(k.detalle || []).map((d) => {
               const cfg      = ESTADO_CFG[d.estado] || { color: '#6b7280', bg: 'bg-slate-500/15', text: 'text-slate-400', icon: Users, label: d.estado }
               const pct      = k.total_clientes ? (d.cnt / k.total_clientes) * 100 : 0
               const IconComp = cfg.icon
+              const isSel    = estadoSel === d.estado
               return (
-                <div key={d.estado} className="flex items-center gap-3">
+                <div
+                  key={d.estado}
+                  onClick={() => toggleEstado(d.estado)}
+                  className={`flex items-center gap-3 cursor-pointer p-1 rounded-lg transition-colors ${
+                    isSel ? 'bg-surface-700 ring-1 ring-surface-600' : 'hover:bg-surface-700/50'
+                  }`}
+                >
                   <div className={`w-8 h-8 rounded-lg ${cfg.bg} flex items-center justify-center flex-shrink-0`}>
                     <IconComp size={14} className={cfg.text} />
                   </div>

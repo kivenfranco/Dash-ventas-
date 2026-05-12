@@ -93,7 +93,8 @@ def get_canasta(
             item_names[c] = d
         for c in codes:
             item_count[c] += 1
-        for a, b in combinations(sorted(codes), 2):
+        valid_codes = [c for c in codes if c is not None]
+        for a, b in combinations(sorted(valid_codes), 2):
             pair_count[(a, b)] += 1
 
     records = []

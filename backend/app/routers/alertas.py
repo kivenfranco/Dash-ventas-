@@ -129,7 +129,7 @@ def get_inactivos(
             SELECT
                 fv.NUMERO_CLIENTE,
                 MAX(fv.ID_CLIENTE)            AS id_cliente,
-                fv.CODIGO_VENDEDOR,
+                MAX(fv.CODIGO_VENDEDOR)       AS codigo_vendedor,
                 MAX(fv.FECHA_FACTURA)         AS ultima_compra,
                 DATEDIFF('day', MAX(fv.FECHA_FACTURA), {ref_date}) AS dias_sin_compra,
                 SUM(CASE WHEN fv.ANO_FISCAL >= {ano} - 1
@@ -139,7 +139,7 @@ def get_inactivos(
             FROM {cfg.T('FACT_VENTAS')} fv
             {join_str}
             WHERE 1=1 {extra_cond}
-            GROUP BY 1, 3
+            GROUP BY fv.NUMERO_CLIENTE
             HAVING MAX(fv.FECHA_FACTURA) < DATEADD('month', -{meses_inactivo}, {ref_date})
                AND SUM(fv.VENTAS_NETAS) > 0
         )
@@ -148,9 +148,9 @@ def get_inactivos(
                dv.NOMBRE AS nombre_vendedor,
                dec.ESTADO_CLIENTE
         FROM base b
-        LEFT JOIN {cfg.TM('DIM_CLIENTE')} dc   ON b.NUMERO_CLIENTE  = dc.NUMERO_CLIENTE
-        LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv  ON b.CODIGO_VENDEDOR = dv.CODIGO_VENDEDOR
-        LEFT JOIN {cfg.T('DIM_ESTADO_CLIENTE')} dec ON dec.ID_CLIENTE = b.id_cliente
+        LEFT JOIN (SELECT NUMERO_CLIENTE, NOMBRE, TIPO_CLIENTE FROM {cfg.TM('DIM_CLIENTE')} QUALIFY ROW_NUMBER() OVER (PARTITION BY NUMERO_CLIENTE ORDER BY NUMERO_CLIENTE) = 1) dc ON b.NUMERO_CLIENTE = dc.NUMERO_CLIENTE
+        LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv  ON b.codigo_vendedor = dv.CODIGO_VENDEDOR
+        LEFT JOIN (SELECT ID_CLIENTE, ESTADO_CLIENTE FROM {cfg.T('DIM_ESTADO_CLIENTE')} QUALIFY ROW_NUMBER() OVER (PARTITION BY ID_CLIENTE ORDER BY ID_CLIENTE) = 1) dec ON dec.ID_CLIENTE = b.id_cliente
         ORDER BY ventas_historico DESC
         LIMIT {top_n}
     """
@@ -318,6 +318,7 @@ def get_rfm(
 def get_alertas_clientes(
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
+    mes_fin: Optional[int] = Query(None, ge=1, le=12),
     umbral_yoy: float = Query(-20.0),
     region: Optional[str] = None,
     vendedor: Optional[str] = None,
@@ -331,7 +332,7 @@ def get_alertas_clientes(
     excl_pvta: bool = Query(True),
 ):
     cfg = get_settings()
-    key = f"alertas:{ano}:{mes}:{umbral_yoy}:{region}:{vendedor}:{mercado}:{cliente}:{grupo_comercial}:{planta}:{es_stock}:{top_n}:{excl_exportacion}:{excl_pvta}"
+    key = f"alertas:{ano}:{mes}:{mes_fin}:{umbral_yoy}:{region}:{vendedor}:{mercado}:{cliente}:{grupo_comercial}:{planta}:{es_stock}:{top_n}:{excl_exportacion}:{excl_pvta}"
     cached = cache.get(key)
     if cached:
         return cached
@@ -357,7 +358,9 @@ def get_alertas_clientes(
 
     cur_where  = "fv.ANO_FISCAL = %s"
     cur_params = [ano]
-    if mes:
+    if mes and mes_fin and mes_fin > mes:
+        cur_where += " AND fv.PERIODO_FISCAL BETWEEN %s AND %s"; cur_params.extend([mes, mes_fin])
+    elif mes:
         cur_where += " AND fv.PERIODO_FISCAL = %s"; cur_params.append(mes)
     elif mes_cap:
         cur_where += " AND fv.PERIODO_FISCAL <= %s"; cur_params.append(mes_cap)
@@ -365,7 +368,9 @@ def get_alertas_clientes(
 
     ant_where  = "fv.ANO_FISCAL = %s"
     ant_params = [ano - 1]
-    if mes:
+    if mes and mes_fin and mes_fin > mes:
+        ant_where += " AND fv.PERIODO_FISCAL BETWEEN %s AND %s"; ant_params.extend([mes, mes_fin])
+    elif mes:
         ant_where += " AND fv.PERIODO_FISCAL = %s"; ant_params.append(mes)
     elif mes_cap:
         ant_where += " AND fv.PERIODO_FISCAL <= %s"; ant_params.append(mes_cap)
@@ -381,13 +386,13 @@ def get_alertas_clientes(
 
     try:
         sql_cur = f"""
-            SELECT fv.NUMERO_CLIENTE, fv.ID_CLIENTE,
+            SELECT fv.NUMERO_CLIENTE, MAX(fv.ID_CLIENTE) AS ID_CLIENTE,
                    COALESCE(SUM(fv.VENTAS_NETAS),0) AS ventas_netas,
                    COALESCE(SUM(fv.CANTIDAD),0)     AS cantidad,
                    MAX(fv.FECHA_FACTURA)             AS ultima_compra
             FROM {cfg.T('FACT_VENTAS')} fv {join_str}
             WHERE {cur_where} {extra_where}
-            GROUP BY 1, 2
+            GROUP BY 1
         """
         sql_ant = f"""
             SELECT fv.NUMERO_CLIENTE,
@@ -397,9 +402,9 @@ def get_alertas_clientes(
             WHERE {ant_where} {extra_where}
             GROUP BY 1
         """
-        sql_dim    = f"SELECT NUMERO_CLIENTE, NOMBRE, TIPO_CLIENTE, CODIGO_VENDEDOR FROM {cfg.TM('DIM_CLIENTE')}"
-        sql_estado = f"SELECT ID_CLIENTE, ESTADO_CLIENTE FROM {cfg.T('DIM_ESTADO_CLIENTE')}"
-        sql_vend   = f"SELECT CODIGO_VENDEDOR, NOMBRE AS nombre_vendedor FROM {cfg.TM('DIM_VENDEDOR')}"
+        sql_dim    = f"SELECT NUMERO_CLIENTE, NOMBRE, TIPO_CLIENTE, CODIGO_VENDEDOR FROM {cfg.TM('DIM_CLIENTE')} QUALIFY ROW_NUMBER() OVER (PARTITION BY NUMERO_CLIENTE ORDER BY NUMERO_CLIENTE) = 1"
+        sql_estado = f"SELECT ID_CLIENTE, ESTADO_CLIENTE FROM {cfg.T('DIM_ESTADO_CLIENTE')} QUALIFY ROW_NUMBER() OVER (PARTITION BY ID_CLIENTE ORDER BY ID_CLIENTE) = 1"
+        sql_vend   = f"SELECT CODIGO_VENDEDOR, NOMBRE AS nombre_vendedor FROM {cfg.TM('DIM_VENDEDOR')} QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_VENDEDOR ORDER BY CODIGO_VENDEDOR) = 1"
 
         df_cur    = connector.query(sql_cur,   cur_params)
         df_ant    = connector.query(sql_ant,   ant_params)
@@ -429,9 +434,13 @@ def get_alertas_clientes(
         _df.columns = [c.lower() for c in _df.columns]
 
     merged = df_cur.merge(df_ant, on="numero_cliente", how="inner")
+    logger.error(f"DEBUG: df_cur {len(df_cur)}, df_ant {len(df_ant)}, merged1 {len(merged)}")
     merged = merged.merge(df_dim[["numero_cliente","nombre","tipo_cliente","codigo_vendedor"]], on="numero_cliente", how="left")
+    logger.error(f"DEBUG: df_dim {len(df_dim)}, merged2 {len(merged)}")
     merged = merged.merge(df_estado[["id_cliente","estado_cliente"]], on="id_cliente", how="left")
+    logger.error(f"DEBUG: df_estado {len(df_estado)}, merged3 {len(merged)}")
     merged = merged.merge(df_vend, on="codigo_vendedor", how="left")
+    logger.error(f"DEBUG: df_vend {len(df_vend)}, merged4 {len(merged)}")
     if df_mom is not None:
         merged = merged.merge(df_mom, on="numero_cliente", how="left")
         merged["ventas_mes_ant"] = merged["ventas_mes_ant"].fillna(0)

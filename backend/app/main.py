@@ -3,6 +3,22 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from typing import Any
+import math
+
+def sanitize_nans(obj: Any) -> Any:
+    if isinstance(obj, float) and math.isnan(obj):
+        return None
+    elif isinstance(obj, dict):
+        return {k: sanitize_nans(v) for k, v in obj.items()}
+    elif isinstance(obj, list) or isinstance(obj, tuple):
+        return [sanitize_nans(i) for i in obj]
+    return obj
+
+class SafeJSONResponse(JSONResponse):
+    def render(self, content: Any) -> bytes:
+        return super().render(sanitize_nans(content))
 
 from .auth import auth_middleware, setup_default_admin, check_security_config, get_user
 from .config import get_settings
@@ -15,7 +31,7 @@ from .routers import (
 )
 from .routers import (
     auth_router, rfm, abcxyz, clv, cross_selling, churn, search, desempeno, presupuesto_manual,
-    pvm, rfm_migracion, estacionalidad, riesgo_cliente, pvta_presupuesto,
+    pvm, rfm_migracion, estacionalidad, riesgo_cliente, pvta_presupuesto, elasticidad,
 )
 from .scheduler.jobs import start_scheduler, stop_scheduler, trigger_manual_refresh
 from .database.cache import cache
@@ -40,6 +56,7 @@ async def lifespan(app: FastAPI):
     check_security_config()
     setup_default_admin()
     start_scheduler()
+    cache.flush()
     yield
     stop_scheduler()
     logger.info("BI Ventas API shut down")
@@ -54,6 +71,7 @@ app = FastAPI(
     docs_url="/docs" if cfg.DEBUG else None,
     redoc_url="/redoc" if cfg.DEBUG else None,
     openapi_url="/openapi.json" if cfg.DEBUG else None,
+    default_response_class=SafeJSONResponse,
 )
 
 # CORS must be registered before auth middleware
@@ -116,6 +134,7 @@ app.include_router(rfm_migracion.router)
 app.include_router(estacionalidad.router)
 app.include_router(riesgo_cliente.router)
 app.include_router(pvta_presupuesto.router)
+app.include_router(elasticidad.router)
 app.include_router(schema_router.router)
 
 

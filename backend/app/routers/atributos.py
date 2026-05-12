@@ -19,11 +19,11 @@ _VALID_GROUPS = "^(es_stock|estructura|dispositivo|tipo_producto|tipo_fabricacio
 
 _DIM_MAP = {
     # (sql_expr, dim_source, filter_nulls)
-    "es_stock":         ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",              "grupo_prod",  False),
-    "estructura":       ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",              "grupo_prod",  False),
-    "dispositivo":      ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",              "grupo_prod",  False),
-    "tipo_producto":    ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",              "grupo_prod",  False),
-    "tipo_fabricacion": ("dgc.TIPO_FABRICACION",                                       "grupo",       True),
+    "es_stock":         ("CASE WHEN dp.ES_STOCK = TRUE THEN 'Stock' WHEN dp.ES_STOCK = FALSE THEN 'No Stock' ELSE 'Sin Clasificar' END", "parte", False),
+    "estructura":       ("COALESCE(dp.ESTRUCTURA, 'Sin Clasificar')",                  "parte",       False),
+    "dispositivo":      ("COALESCE(dp.DISPOSITIVO, 'Sin Clasificar')",                 "parte",       False),
+    "tipo_producto":    ("COALESCE(dp.TIPO_PRODUCTO, 'Sin Clasificar')",               "parte",       False),
+    "tipo_fabricacion": ("COALESCE(dgc.TIPO_FABRICACION, 'Sin Clasificar')",           "grupo",       False),
     "descripcion_parte":("fv.CODIGO_PRODUCTO",                                         "ninguno",     True),
     "descripcion":      ("fv.CODIGO_PRODUCTO",                                         "ninguno",     True),
     "linea_negocio":    ("COALESCE(dgp.LINEA_NEGOCIO, 'Sin Clasificar')",              "grupo_prod",  False),
@@ -35,9 +35,15 @@ def _build_sql(cfg, group_by, ano, mes, region, vendedor, planta, grupo_comercia
     dim_col, dim_src, filter_nulls = _DIM_MAP[group_by]
 
     joins = []
-    if dim_src == "grupo_prod":
+    if dim_src == "parte":
+        dp_sub = (
+            f"(SELECT CODIGO_PRODUCTO, ES_STOCK, ESTRUCTURA, DISPOSITIVO, TIPO_PRODUCTO FROM {cfg.TM('DIM_PARTE')} "
+            f"QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY CODIGO_PRODUCTO) = 1)"
+        )
+        joins.append(f"LEFT JOIN {dp_sub} dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO")
+    elif dim_src == "grupo_prod":
         joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO")
-    if dim_src == "grupo":
+    elif dim_src == "grupo":
         joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO")
         joins.append(f"LEFT JOIN {cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO")
     # dim_src == "ninguno": no join needed (uses fv columns directly)
