@@ -15,7 +15,8 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from ..deps import vendedor_override
 
 from ..config import get_settings
 from ..database.cache import cache
@@ -56,15 +57,21 @@ def _segmento_clv(clv: float, q25: float, q50: float, q75: float) -> str:
 
 @router.get("")
 def get_clv(
+    request: Request,
     ano: int = Query(default_factory=lambda: date.today().year),
     excl_pvta: bool = Query(True),
+    vendedor: Optional[str] = None,
     top_n: int = Query(200, ge=10, le=1000),
 ):
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
     today = date.today()
     ref_mes = today.month if ano == today.year else 12
 
-    key = f"clv:{ano}:{excl_pvta}:{top_n}"
+    key = f"clv:{ano}:{excl_pvta}:{vendedor}:{top_n}"
     if (hit := cache.get(key)):
         return hit
 
@@ -74,7 +81,12 @@ def get_clv(
     base_where = "fv.NUMERO_CLIENTE IS NOT NULL"
     if excl_pvta:
         base_where += f" AND {pvta_fv}"
+    if vendedor:
+        ven_safe = str(vendedor).replace("'", "''")
+        base_where += f" AND fv.CODIGO_VENDEDOR = '{ven_safe}'"
     inner_fv2 = pvta_fv2 if excl_pvta else "1=1"
+    if vendedor:
+        inner_fv2 += f" AND fv2.CODIGO_VENDEDOR = '{ven_safe}'"
 
     sql = f"""
         WITH ann AS (

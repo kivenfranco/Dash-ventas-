@@ -134,8 +134,8 @@ export function CrossSellingView() {
               value={cliente}
               onChange={(e) => setCliente(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && buscarCliente()}
-              placeholder="Número cliente (ej. 12345)"
-              className="bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 w-64"
+              placeholder="Código o nombre del cliente"
+              className="bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 w-72"
             />
             <button
               onClick={buscarCliente}
@@ -149,7 +149,10 @@ export function CrossSellingView() {
           {recs && (
             <div className="bg-surface-900 border border-surface-700 rounded-xl p-4">
               <p className="text-sm font-medium text-slate-200 mb-1">
-                Cliente: <span className="font-mono text-brand-300">{recs.cliente}</span>
+                <span className="text-brand-300 font-semibold">{recs.nombre_cliente || recs.cliente}</span>
+                {recs.nombre_cliente && recs.cliente !== recs.nombre_cliente && (
+                  <span className="text-slate-500 font-mono text-xs ml-2">#{recs.cliente}</span>
+                )}
                 <span className="text-slate-500 text-xs ml-2">— {recs.productos_actuales} productos actuales</span>
               </p>
               {recs.error && <p className="text-red-400 text-xs mt-2">{recs.error}</p>}

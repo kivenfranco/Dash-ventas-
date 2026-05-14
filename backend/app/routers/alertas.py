@@ -7,7 +7,8 @@ import math
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from ..deps import vendedor_override
 
 from ..config import get_settings
 from ..database.cache import cache
@@ -92,6 +93,7 @@ def _apply_filters(cfg, joins, cond, params, *,
 
 @router.get("/inactivos")
 def get_inactivos(
+    request: Request,
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
     meses_inactivo: int = Query(3, ge=1, le=24),
@@ -107,6 +109,10 @@ def get_inactivos(
     excl_pvta: bool = Query(True),
 ):
     """Clientes que no han comprado en {meses_inactivo} meses desde la fecha de referencia."""
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
     key = f"inact:{ano}:{mes}:{meses_inactivo}:{region}:{vendedor}:{mercado}:{cliente}:{grupo_comercial}:{planta}:{es_stock}:{top_n}:{excl_exportacion}:{excl_pvta}"
     cached = cache.get(key)
@@ -196,6 +202,7 @@ def get_inactivos(
 
 @router.get("/rfm")
 def get_rfm(
+    request: Request,
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
     region: Optional[str] = None,
@@ -210,6 +217,10 @@ def get_rfm(
     top_n: int = Query(300, ge=10, le=1000),
 ):
     """Segmentación RFM — Recencia, Frecuencia, Monto. Recencia calculada al cierre del período."""
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
     key = f"rfm:{ano}:{mes}:{region}:{vendedor}:{mercado}:{cliente}:{grupo_comercial}:{planta}:{es_stock}:{excl_pvta}:{excl_exportacion}"
     cached = cache.get(key)
@@ -316,6 +327,7 @@ def get_rfm(
 
 @router.get("/clientes")
 def get_alertas_clientes(
+    request: Request,
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
     mes_fin: Optional[int] = Query(None, ge=1, le=12),
@@ -331,6 +343,10 @@ def get_alertas_clientes(
     excl_exportacion: bool = Query(False),
     excl_pvta: bool = Query(True),
 ):
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
     key = f"alertas:{ano}:{mes}:{mes_fin}:{umbral_yoy}:{region}:{vendedor}:{mercado}:{cliente}:{grupo_comercial}:{planta}:{es_stock}:{top_n}:{excl_exportacion}:{excl_pvta}"
     cached = cache.get(key)
@@ -498,6 +514,7 @@ def get_alertas_clientes(
 
 @router.get("/tendencia")
 def get_tendencia(
+    request: Request,
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
     region: Optional[str] = None,
@@ -514,6 +531,10 @@ def get_tendencia(
     excl_pvta: bool = Query(True),
 ):
     """Clientes con tendencia de consumo decreciente en los últimos N meses (regresión lineal)."""
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
     key = f"tend:{ano}:{mes}:{region}:{vendedor}:{mercado}:{cliente}:{grupo_comercial}:{planta}:{es_stock}:{meses_tendencia}:{min_meses}:{top_n}:{excl_exportacion}:{excl_pvta}"
     cached = cache.get(key)

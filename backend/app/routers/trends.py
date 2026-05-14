@@ -7,11 +7,12 @@ import logging
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from ..config import get_settings
 from ..database.cache import cache
 from ..database.snowflake_connector import connector
+from ..deps import vendedor_override
 
 router = APIRouter(prefix="/api/trends", tags=["Trends"])
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("")
 def get_trends(
+    request: Request,
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
     mes_fin: Optional[int] = Query(None, ge=1, le=12),
@@ -29,8 +31,12 @@ def get_trends(
     excl_exportacion: bool = Query(False),
     excl_pvta: bool = Query(False),
 ):
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
-    key = f"trends:{ano}:{region}:{vendedor}:{grupo_comercial}:{planta}:{excl_exportacion}:{excl_pvta}"
+    key = f"trends:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{grupo_comercial}:{planta}:{excl_exportacion}:{excl_pvta}"
     cached = cache.get(key)
     if cached:
         return cached
@@ -62,7 +68,12 @@ def get_trends(
     extra_where = (" AND " + " AND ".join(dim_cond)) if dim_cond else ""
     
     max_mes = mes_fin if mes_fin else (mes if mes else 12)
-    month_filter = f" AND fv.PERIODO_FISCAL <= {max_mes}"
+    if mes and mes_fin and mes_fin != mes:
+        month_filter = f" AND fv.PERIODO_FISCAL BETWEEN {mes} AND {mes_fin}"
+    elif mes:
+        month_filter = f" AND fv.PERIODO_FISCAL <= {mes}"
+    else:
+        month_filter = ""
 
     _mes_case = (
         "CASE fv.PERIODO_FISCAL "
@@ -106,10 +117,16 @@ def get_trends(
     if grupo_comercial: pp_cond.append("GRUPO_COMERCIAL = %s"); pp_params.append(grupo_comercial)
     if planta:          pp_cond.append("PLANTA = %s");         pp_params.append(planta)
     if excl_exportacion: pp_cond.append("UPPER(REGION) NOT LIKE '%%EXPORTACION%%'")
+    if mes and mes_fin and mes_fin != mes:
+        pp_month = f"AND MES_NUM BETWEEN {mes} AND {mes_fin}"
+    elif mes:
+        pp_month = f"AND MES_NUM <= {mes}"
+    else:
+        pp_month = ""
     pp_sql = f"""
         SELECT MES_NUM AS mes_num, COALESCE(SUM(PRESUPUESTO_MES),0) AS pp_mes
         FROM {cfg.T('PP_REGION_PLANTA_GRUPO')}
-        WHERE {' AND '.join(pp_cond)} AND MES_NUM <= {max_mes}
+        WHERE {' AND '.join(pp_cond)} {pp_month}
         GROUP BY 1 ORDER BY 1
     """
 

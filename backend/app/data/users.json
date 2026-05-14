@@ -7,6 +7,14 @@
       "password_hash": "$2b$12$bmiX01KZsfPTKRoLP6wgueuSkT1tjDWVVckS.CzBCczj/r9CrRiYi",
       "rol": "admin",
       "codigo_vendedor": null
+    },
+    {
+      "id": 2,
+      "nombre": "Kiven Franco",
+      "email": "kfranco@alico-sa.com",
+      "password_hash": "$2b$12$OmJWdV6HSNtMbrA6XtzFWuADLjTUJQhpKSnSPdIG4iuV0kVyiJTUC",
+      "rol": "admin",
+      "codigo_vendedor": null
     }
   ]
 }

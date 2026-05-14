@@ -57,7 +57,7 @@ const PRESETS = [
 ]
 
 export function GlobalFilters({ collapsed, onToggle }) {
-  const { filters, _raw, update, reset, compPeriod, updateComp } = useFilters()
+  const { filters, _raw, update, reset, compPeriod, updateComp, vendedorLocked } = useFilters()
   const rawFilters = _raw || filters
   const fav = useFavoritos(rawFilters, update)
 
@@ -287,14 +287,16 @@ export function GlobalFilters({ collapsed, onToggle }) {
             onToggle={(v) => toggleDim('region', v)}
             update={update}
           />
-          <MultiDimSelect
-            label="Vendedor"
-            dimKey="vendedor"
-            selected={selVendedores}
-            options={opts.vendedores.map((v) => ({ value: v.CODIGO_VENDEDOR || v.codigo_vendedor || v, label: v.NOMBRE || v.nombre || v }))}
-            onToggle={(v) => toggleDim('vendedor', v)}
-            update={update}
-          />
+          {!vendedorLocked && (
+            <MultiDimSelect
+              label="Vendedor"
+              dimKey="vendedor"
+              selected={selVendedores}
+              options={opts.vendedores.map((v) => ({ value: v.CODIGO_VENDEDOR || v.codigo_vendedor || v, label: v.NOMBRE || v.nombre || v }))}
+              onToggle={(v) => toggleDim('vendedor', v)}
+              update={update}
+            />
+          )}
           <MultiDimSelect
             label="Grupo Comerc."
             dimKey="grupo_comercial"
@@ -374,6 +376,7 @@ export function GlobalFilters({ collapsed, onToggle }) {
             { key: 'mercado',         label: 'Mercado',  values: selMercados    },
           ].flatMap(({ key, label, values }) =>
             values.map((v) => {
+              const isLocked = key === 'vendedor' && vendedorLocked
               let displayVal = v
               if (key === 'vendedor') {
                 const found = opts.vendedores.find(ov => (ov.CODIGO_VENDEDOR || ov.codigo_vendedor) === v)
@@ -382,11 +385,15 @@ export function GlobalFilters({ collapsed, onToggle }) {
               return (
                 <span
                   key={`${key}-${v}`}
-                  onClick={() => removeDimValue(key, v)}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-brand-500/15 text-brand-300 cursor-pointer hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                  onClick={() => !isLocked && removeDimValue(key, v)}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                    isLocked
+                      ? 'bg-brand-500/25 text-brand-300 cursor-default'
+                      : 'bg-brand-500/15 text-brand-300 cursor-pointer hover:bg-red-500/20 hover:text-red-400'
+                  }`}
                 >
                   <span className="text-slate-500">{label}:</span> {displayVal}
-                  <X size={10} />
+                  {!isLocked && <X size={10} />}
                 </span>
               )
             })

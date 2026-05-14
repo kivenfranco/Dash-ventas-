@@ -12,7 +12,7 @@ import {
 } from 'recharts'
 import {
   Users, UserCheck, UserPlus, UserMinus, AlertTriangle,
-  Eye, RefreshCcw, Store, Download, ChevronLeft, ChevronRight,
+  Eye, RefreshCcw, Store, Download, ChevronLeft, ChevronRight, ShoppingCart, UserX, TrendingDown,
 } from 'lucide-react'
 
 const PAGE_SIZE = 100
@@ -55,28 +55,24 @@ export function ClientesView() {
   const { refreshKey }  = useOutletContext()
   const { filters }     = useFilters()
   const [exclPvta, setExclPvta] = useState(true)
+  const [exclEcommerce, setExclEcommerce] = useState(true)
+  const [exclSinVendedor, setExclSinVendedor] = useState(true)
+  const [exclGrandes, setExclGrandes] = useState(false)
   const [estadoSel, setEstadoSel] = useState(null)
   const [page, setPage] = useState(1)
 
-  const f = { ...filters, excl_pvta: exclPvta }
+  const f = { ...filters, excl_pvta: exclPvta, excl_ecommerce: exclEcommerce, excl_sin_vendedor: exclSinVendedor, excl_grandes: exclGrandes }
 
-  const { data: estados, loading: eL } = useData(
-    () => api.clientesEstados(f),
-    [filters, refreshKey, exclPvta]
-  )
-  const { data: byVend, loading: vL } = useData(
-    () => api.segments(f, 'vendedor', 30),
-    [filters, refreshKey, exclPvta]
-  )
+  const deps = [filters, refreshKey, exclPvta, exclEcommerce, exclSinVendedor, exclGrandes]
+
+  const { data: estados, loading: eL } = useData(() => api.clientesEstados(f), deps)
+  const { data: byVend, loading: vL }  = useData(() => api.segments(f, 'vendedor', 30), deps)
   const { data: clienteLista, loading: cL } = useData(
     () => api.clientesLista(f, estadoSel, 500),
-    [filters, refreshKey, exclPvta, estadoSel],
+    [...deps, estadoSel],
     { onSuccess: () => setPage(1) }
   )
-  const { data: breakdown } = useData(
-    () => api.clientesBreakdown(f),
-    [filters, refreshKey, exclPvta]
-  )
+  const { data: breakdown } = useData(() => api.clientesBreakdown(f), deps)
 
   const k      = estados || {}
   const period = formatPeriod(filters.ano, filters.mes, filters.mes_fin)
@@ -112,17 +108,53 @@ export function ClientesView() {
           <h1 className="text-xl font-bold text-slate-100">Estado de Clientes</h1>
           <p className="text-slate-500 text-xs mt-0.5">Clasificación dinámica · {period}</p>
         </div>
-        <button
-          onClick={() => setExclPvta((v) => !v)}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-            exclPvta
-              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-              : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-slate-100'
-          }`}
-        >
-          <Store size={12} />
-          {exclPvta ? 'Sin PVTA' : 'Con PVTA'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setExclPvta((v) => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              exclPvta
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-slate-100'
+            }`}
+          >
+            <Store size={12} />
+            {exclPvta ? 'Sin PVTA' : 'Con PVTA'}
+          </button>
+          <button
+            onClick={() => setExclEcommerce((v) => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              exclEcommerce
+                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-slate-100'
+            }`}
+          >
+            <ShoppingCart size={12} />
+            {exclEcommerce ? 'Sin Ecommerce' : 'Con Ecommerce'}
+          </button>
+          <button
+            onClick={() => setExclSinVendedor((v) => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              exclSinVendedor
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-slate-100'
+            }`}
+          >
+            <UserX size={12} />
+            {exclSinVendedor ? 'Sin sin-asesor' : 'Con sin-asesor'}
+          </button>
+          <button
+            onClick={() => setExclGrandes((v) => !v)}
+            title="Excluir clientes con compras ≥ $1M en el período — enfoca el análisis en clientes pequeños y nuevos"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              exclGrandes
+                ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
+                : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-slate-100'
+            }`}
+          >
+            <TrendingDown size={12} />
+            {exclGrandes ? 'Sin ≥$1M' : 'Con ≥$1M'}
+          </button>
+        </div>
       </div>
 
       {/* KPI row */}

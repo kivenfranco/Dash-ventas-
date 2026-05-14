@@ -28,13 +28,18 @@ def _build_rules(cfg, ano: int, mes: Optional[int], top_n: int, min_soporte: flo
 
     sql = f"""
         SELECT
-            fv.NUMERO_CLIENTE || '-' || fv.NUMERO_FACTURA          AS basket_id,
-            fv.CODIGO_PRODUCTO                                      AS codigo,
-            COALESCE(dgc.NOMBRE_GRUPO, dgp.LINEA_NEGOCIO,
-                     fv.CODIGO_PRODUCTO)                            AS descripcion
+            fv.NUMERO_CLIENTE || '-' || fv.NUMERO_FACTURA                             AS basket_id,
+            fv.CODIGO_PRODUCTO                                                         AS codigo,
+            COALESCE(dp.DESCRIPCION, dgc.NOMBRE_GRUPO, dgp.LINEA_NEGOCIO,
+                     fv.CODIGO_PRODUCTO)                                              AS descripcion
         FROM {cfg.T('FACT_VENTAS')} fv
         LEFT JOIN {cfg.TM('DIM_GRUPO_PRODUCTO')} dgp ON fv.CODIGO_PRODUCTO = dgp.CODIGO_PRODUCTO
         LEFT JOIN {cfg.TM('DIM_GRUPO_COMERCIAL')} dgc ON dgp.CODIGO_GRUPO_COMERCIAL = dgc.CODIGO_GRUPO
+        LEFT JOIN (
+            SELECT CODIGO_PRODUCTO, DESCRIPCION
+            FROM {cfg.TM('DIM_PARTE')}
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY CODIGO_PRODUCTO ORDER BY CODIGO_PRODUCTO) = 1
+        ) dp ON fv.CODIGO_PRODUCTO = dp.CODIGO_PRODUCTO
         WHERE {where_clause}
     """
     df = connector.query(sql)
@@ -126,7 +131,13 @@ def get_recs_for_cliente(
         return hit
 
     # Products the client HAS bought
-    where_parts: list = [f"fv.ANO_FISCAL = {ano}", f"fv.NUMERO_CLIENTE = '{numero_cliente}'"]
+    try:
+        cli_num = int(numero_cliente)
+        cli_filter = f"fv.NUMERO_CLIENTE = {cli_num}"
+    except ValueError:
+        cli_filter = f"UPPER(dc.NOMBRE_CLIENTE) LIKE '%%{numero_cliente.upper()}%%'"
+
+    where_parts: list = [f"fv.ANO_FISCAL = {ano}", cli_filter]
     if mes and mes_fin and mes_fin > mes:
         where_parts.append(f"fv.PERIODO_FISCAL BETWEEN {mes} AND {mes_fin}")
     elif mes:
@@ -134,21 +145,26 @@ def get_recs_for_cliente(
     where_clause = " AND ".join(where_parts)
 
     sql_owns = f"""
-        SELECT DISTINCT fv.CODIGO_PRODUCTO
+        SELECT DISTINCT fv.CODIGO_PRODUCTO, fv.NUMERO_CLIENTE,
+               dc.NOMBRE_CLIENTE
         FROM {cfg.T('FACT_VENTAS')} fv
+        LEFT JOIN {cfg.TM('DIM_CLIENTE')} dc ON fv.NUMERO_CLIENTE = dc.NUMERO_CLIENTE
         WHERE {where_clause}
     """
     try:
         df_owns = connector.query(sql_owns)
         df_owns.columns = [c.lower() for c in df_owns.columns]
         owned = set(df_owns["codigo_producto"].astype(str).tolist())
-        rules_df = _build_rules(cfg, ano, mes, 500, min_soporte, mes_fin)
+        nombre_cliente = df_owns["nombre_cliente"].iloc[0] if not df_owns.empty and "nombre_cliente" in df_owns.columns else numero_cliente
+        num_cliente = str(df_owns["numero_cliente"].iloc[0]) if not df_owns.empty else numero_cliente
+        # Use lower soporte to find more matches for specific clients
+        rules_df = _build_rules(cfg, ano, mes, 2000, min(min_soporte, 0.005), mes_fin)
     except Exception as exc:
         logger.error("Cross-selling cliente error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc))
 
     if rules_df.empty or not owned:
-        return {"cliente": numero_cliente, "recomendaciones": []}
+        return {"cliente": numero_cliente, "nombre_cliente": numero_cliente, "recomendaciones": [], "productos_actuales": 0}
 
     # Find rules where antecedent is owned and consequent is NOT owned
     recs = (
@@ -160,7 +176,8 @@ def get_recs_for_cliente(
     )
 
     result = {
-        "cliente": numero_cliente,
+        "cliente": num_cliente,
+        "nombre_cliente": str(nombre_cliente) if nombre_cliente else numero_cliente,
         "productos_actuales": len(owned),
         "recomendaciones": recs.to_dict("records"),
     }

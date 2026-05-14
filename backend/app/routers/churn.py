@@ -16,7 +16,8 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from ..deps import vendedor_override
 
 from ..config import get_settings
 from ..database.cache import cache
@@ -26,8 +27,11 @@ router = APIRouter(prefix="/api/churn", tags=["Churn"])
 logger = logging.getLogger(__name__)
 
 
-def _fetch_features(cfg, ano: int, excl_pvta: bool) -> pd.DataFrame:
+def _fetch_features(cfg, ano: int, excl_pvta: bool, vendedor: Optional[str] = None) -> pd.DataFrame:
     cond = "(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%' OR fv.CODIGO_VENDEDOR IS NULL)" if excl_pvta else "1=1"
+    if vendedor:
+        ven_safe = str(vendedor).replace("'", "''")
+        cond += f" AND fv.CODIGO_VENDEDOR = '{ven_safe}'"
 
     sql = f"""
         WITH cur AS (
@@ -140,19 +144,25 @@ def _lead_time_alerta(prob_churn: float, last_mes: int, ref_mes: int) -> str:
 
 @router.get("")
 def get_churn(
+    request: Request,
     ano: int = Query(default_factory=lambda: date.today().year),
     excl_pvta: bool = Query(True),
+    vendedor: Optional[str] = None,
     top_n: int = Query(200, ge=10, le=1000),
 ):
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
     today = date.today()
     ref_mes = today.month if ano == today.year else 12
-    key = f"churn:{ano}:{excl_pvta}:{top_n}"
+    key = f"churn:{ano}:{excl_pvta}:{vendedor}:{top_n}"
     if (hit := cache.get(key)):
         return hit
 
     try:
-        df = _fetch_features(cfg, ano, excl_pvta)
+        df = _fetch_features(cfg, ano, excl_pvta, vendedor=vendedor)
     except Exception as exc:
         logger.error("Churn fetch error: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc))

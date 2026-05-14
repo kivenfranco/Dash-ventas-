@@ -38,7 +38,7 @@ def _ref_dates(ano: int, mes: Optional[int], mes_fin: Optional[int]) -> dict:
     }
 
 
-def _dim_filters(cfg, region, vendedor, grupo_comercial, planta, excl_exportacion, excl_pvta):
+def _dim_filters(cfg, region, vendedor, grupo_comercial, planta, excl_exportacion, excl_pvta, excl_ecommerce=False):
     joins, cond, params = [], [], []
     if region:
         joins.append(f"LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY")
@@ -64,14 +64,18 @@ def _dim_filters(cfg, region, vendedor, grupo_comercial, planta, excl_exportacio
         cond.append("(UPPER(dd.DESCRIPCION_REGION) NOT LIKE '%%EXPORTACION%%' AND UPPER(COALESCE(vm_excl.MERCADO, '')) NOT LIKE '%%EXPORTACION%%')")
 
     if excl_pvta:
-        # Excludes PVTA*, PBOGOTA, PTVAPAST, etc. and anything with 'PUNTO DE VENTA' in the name
         joins.append(f"LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv_pvta ON fv.CODIGO_VENDEDOR = dv_pvta.CODIGO_VENDEDOR")
         cond.append("""(
-            (UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' 
+            (UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%'
              AND UPPER(fv.CODIGO_VENDEDOR) NOT IN ('PBOGOTA', 'PTVAPAST', 'PBOGMONTE', 'PBOG')
              AND UPPER(COALESCE(dv_pvta.NOMBRE, '')) NOT LIKE '%%PUNTO DE VENTA%%'
             ) OR fv.CODIGO_VENDEDOR IS NULL
         )""")
+
+    if excl_ecommerce:
+        joins.append(f"LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv_ecm ON fv.CODIGO_VENDEDOR = dv_ecm.CODIGO_VENDEDOR")
+        cond.append("(UPPER(COALESCE(dv_ecm.NOMBRE, '')) NOT LIKE '%%ECOMMERCE%%' AND UPPER(COALESCE(dv_ecm.NOMBRE, '')) NOT LIKE '%%E-COMMERCE%%' OR fv.CODIGO_VENDEDOR IS NULL)")
+
     seen, uniq = set(), []
     for j in joins:
         if j not in seen:
@@ -139,23 +143,34 @@ def get_clientes_estados(
     planta: Optional[str] = None,
     excl_exportacion: bool = Query(False),
     excl_pvta: bool        = Query(False),
+    excl_ecommerce: bool   = Query(False),
+    excl_sin_vendedor: bool= Query(False),
+    excl_grandes: bool     = Query(False),
 ):
     """Clasificación dinámica de clientes según historial de compras y período filtrado."""
     cfg = get_settings()
-    key = f"cli_est2:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{grupo_comercial}:{planta}:{excl_exportacion}:{excl_pvta}"
+    key = f"cli_est2:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{grupo_comercial}:{planta}:{excl_exportacion}:{excl_pvta}:{excl_ecommerce}:{excl_sin_vendedor}:{excl_grandes}"
     if cached := cache.get(key):
         return cached
 
     rd    = _ref_dates(ano, mes, mes_fin)
-    joins, cond, params = _dim_filters(cfg, region, vendedor, grupo_comercial, planta, excl_exportacion, excl_pvta)
+    joins, cond, params = _dim_filters(cfg, region, vendedor, grupo_comercial, planta, excl_exportacion, excl_pvta, excl_ecommerce)
     cte   = _make_cte(cfg, rd, joins, cond)
 
-    sql = cte + """
+    extras = []
+    if excl_sin_vendedor:
+        extras.append("ultimo_vendedor IS NOT NULL")
+    if excl_grandes:
+        extras.append("vn_periodo < 1000000")
+    extra_where = ("AND " + " AND ".join(extras)) if extras else ""
+
+    sql = cte + f"""
         SELECT
             estado,
             COUNT(*)                AS cnt,
             COALESCE(SUM(vn_periodo), 0) AS ventas_netas
         FROM classified
+        WHERE TRUE {extra_where}
         GROUP BY estado
         ORDER BY cnt DESC
     """
@@ -204,24 +219,34 @@ def get_clientes_lista(
     planta: Optional[str] = None,
     excl_exportacion: bool = Query(False),
     excl_pvta: bool        = Query(False),
+    excl_ecommerce: bool   = Query(False),
+    excl_sin_vendedor: bool= Query(False),
+    excl_grandes: bool     = Query(False),
     estado: Optional[str]  = Query(None),
     top_n: int             = Query(150, ge=1, le=500),
 ):
     """Lista de clientes con clasificación dinámica, última compra y métricas del período."""
     cfg = get_settings()
-    key = f"cli_lst2:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{grupo_comercial}:{planta}:{excl_exportacion}:{excl_pvta}:{estado}:{top_n}"
+    key = f"cli_lst2:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{grupo_comercial}:{planta}:{excl_exportacion}:{excl_pvta}:{excl_ecommerce}:{excl_sin_vendedor}:{excl_grandes}:{estado}:{top_n}"
     if cached := cache.get(key):
         return cached
 
     rd    = _ref_dates(ano, mes, mes_fin)
-    joins, cond, params = _dim_filters(cfg, region, vendedor, grupo_comercial, planta, excl_exportacion, excl_pvta)
+    joins, cond, params = _dim_filters(cfg, region, vendedor, grupo_comercial, planta, excl_exportacion, excl_pvta, excl_ecommerce)
     cte   = _make_cte(cfg, rd, joins, cond)
 
-    est_filter = ""
     outer_params = list(params)
+    where_parts = []
     if estado:
-        est_filter = "WHERE UPPER(c.estado) = %s"
+        where_parts.append("UPPER(c.estado) = %s")
         outer_params.append(estado.upper())
+    if excl_sin_vendedor:
+        where_parts.append("c.ultimo_vendedor IS NOT NULL")
+    if excl_ecommerce:
+        where_parts.append("(UPPER(COALESCE(dv.NOMBRE, '')) NOT LIKE '%%ECOMMERCE%%' AND UPPER(COALESCE(dv.NOMBRE, '')) NOT LIKE '%%E-COMMERCE%%')")
+    if excl_grandes:
+        where_parts.append("c.vn_periodo < 1000000")
+    where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
     sql = cte + f"""
         SELECT
@@ -241,7 +266,7 @@ def get_clientes_lista(
         FROM classified c
         LEFT JOIN {cfg.TM('DIM_CLIENTE')}  dc ON c.NUMERO_CLIENTE  = dc.NUMERO_CLIENTE
         LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv ON c.ultimo_vendedor  = dv.CODIGO_VENDEDOR
-        {est_filter}
+        {where_clause}
         ORDER BY c.vn_periodo DESC, c.vn_historico DESC
         LIMIT {top_n}
     """
@@ -296,6 +321,41 @@ def get_clientes_lista(
     return result
 
 
+def _ecm_cond(alias: str) -> str:
+    return (
+        f"AND UPPER(COALESCE({alias}.NOMBRE,'')) NOT LIKE '%%ECOMMERCE%%' "
+        f"AND UPPER(COALESCE({alias}.NOMBRE,'')) NOT LIKE '%%E-COMMERCE%%'"
+    )
+
+
+def _bkd_vend_where(excl_sin_vendedor: bool, excl_ecommerce: bool, excl_grandes: bool = False) -> str:
+    parts = []
+    if excl_sin_vendedor:
+        parts.append("AND c.ultimo_vendedor IS NOT NULL")
+    if excl_ecommerce:
+        parts.append(_ecm_cond("dv"))
+    if excl_grandes:
+        parts.append("AND c.vn_periodo < 1000000")
+    return " ".join(parts)
+
+
+def _bkd_reg_join(cfg, excl_sin_vendedor: bool, excl_ecommerce: bool) -> str:
+    if excl_sin_vendedor or excl_ecommerce:
+        return f"LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv2 ON c.ultimo_vendedor = dv2.CODIGO_VENDEDOR"
+    return ""
+
+
+def _bkd_reg_where(excl_sin_vendedor: bool, excl_ecommerce: bool, excl_grandes: bool = False) -> str:
+    parts = []
+    if excl_sin_vendedor:
+        parts.append("AND c.ultimo_vendedor IS NOT NULL")
+    if excl_ecommerce:
+        parts.append(_ecm_cond("dv2"))
+    if excl_grandes:
+        parts.append("AND c.vn_periodo < 1000000")
+    return " ".join(parts)
+
+
 @router.get("/breakdown")
 def get_clientes_breakdown(
     ano: int              = Query(default_factory=lambda: date.today().year),
@@ -307,15 +367,18 @@ def get_clientes_breakdown(
     planta: Optional[str] = None,
     excl_exportacion: bool = Query(False),
     excl_pvta: bool        = Query(False),
+    excl_ecommerce: bool   = Query(False),
+    excl_sin_vendedor: bool= Query(False),
+    excl_grandes: bool     = Query(False),
 ):
     """Distribución de estados de clientes agrupada por vendedor y por región."""
     cfg = get_settings()
-    key = f"cli_bkd:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{grupo_comercial}:{planta}:{excl_exportacion}:{excl_pvta}"
+    key = f"cli_bkd:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{grupo_comercial}:{planta}:{excl_exportacion}:{excl_pvta}:{excl_ecommerce}:{excl_sin_vendedor}:{excl_grandes}"
     if cached := cache.get(key):
         return cached
 
     rd    = _ref_dates(ano, mes, mes_fin)
-    joins, cond, params = _dim_filters(cfg, region, vendedor, grupo_comercial, planta, excl_exportacion, excl_pvta)
+    joins, cond, params = _dim_filters(cfg, region, vendedor, grupo_comercial, planta, excl_exportacion, excl_pvta, excl_ecommerce)
 
     dom_join = f"LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dd ON fv.DOMICILIO_KEY = dd.DOMICILIO_KEY"
     if not any("DIM_DOMICILIO" in j for j in joins):
@@ -327,8 +390,8 @@ def get_clientes_breakdown(
 
     sql = f"""
     WITH hist AS (
-        SELECT fv.NUMERO_CLIENTE, fv.FECHA_FACTURA, fv.CODIGO_VENDEDOR,
-               dd.DESCRIPCION_REGION
+        SELECT fv.NUMERO_CLIENTE, fv.FECHA_FACTURA, fv.VENTAS_NETAS,
+               fv.CODIGO_VENDEDOR, dd.DESCRIPCION_REGION
         FROM {cfg.T('FACT_VENTAS')} fv
         {join_str}
         WHERE fv.FECHA_FACTURA <= {ref}
@@ -338,12 +401,13 @@ def get_clientes_breakdown(
     per_client AS (
         SELECT
             NUMERO_CLIENTE,
-            MIN(FECHA_FACTURA)                                              AS primera_compra,
-            MAX(FECHA_FACTURA)                                              AS ultima_compra,
-            MAX(CASE WHEN FECHA_FACTURA >= {ps} THEN FECHA_FACTURA END)    AS ultima_en_periodo,
-            MAX(CASE WHEN FECHA_FACTURA <  {ps} THEN FECHA_FACTURA END)    AS ultima_antes_periodo,
-            MAX_BY(CODIGO_VENDEDOR,    FECHA_FACTURA)                      AS ultimo_vendedor,
-            MAX_BY(DESCRIPCION_REGION, FECHA_FACTURA)                      AS ultima_region
+            MIN(FECHA_FACTURA)                                                          AS primera_compra,
+            MAX(FECHA_FACTURA)                                                          AS ultima_compra,
+            MAX(CASE WHEN FECHA_FACTURA >= {ps} THEN FECHA_FACTURA END)                AS ultima_en_periodo,
+            MAX(CASE WHEN FECHA_FACTURA <  {ps} THEN FECHA_FACTURA END)                AS ultima_antes_periodo,
+            COALESCE(SUM(CASE WHEN FECHA_FACTURA >= {ps} THEN VENTAS_NETAS END), 0)   AS vn_periodo,
+            MAX_BY(CODIGO_VENDEDOR,    FECHA_FACTURA)                                  AS ultimo_vendedor,
+            MAX_BY(DESCRIPCION_REGION, FECHA_FACTURA)                                  AS ultima_region
         FROM hist
         GROUP BY NUMERO_CLIENTE
     ),
@@ -365,6 +429,8 @@ def get_clientes_breakdown(
            c.estado, COUNT(*) AS cnt
     FROM classified c
     LEFT JOIN {cfg.TM('DIM_VENDEDOR')} dv ON c.ultimo_vendedor = dv.CODIGO_VENDEDOR
+    WHERE TRUE
+    {_bkd_vend_where(excl_sin_vendedor, excl_ecommerce, excl_grandes)}
     GROUP BY 1, 2, 3
 
     UNION ALL
@@ -373,6 +439,9 @@ def get_clientes_breakdown(
            COALESCE(c.ultima_region, '—') AS nombre,
            c.estado, COUNT(*) AS cnt
     FROM classified c
+    {_bkd_reg_join(cfg, excl_sin_vendedor, excl_ecommerce)}
+    WHERE TRUE
+    {_bkd_reg_where(excl_sin_vendedor, excl_ecommerce, excl_grandes)}
     GROUP BY 1, 2, 3
     """
 

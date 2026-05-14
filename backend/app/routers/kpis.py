@@ -13,11 +13,12 @@ import logging
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from ..config import get_settings
 from ..database.cache import cache
 from ..database.snowflake_connector import connector
+from ..deps import vendedor_override
 
 router = APIRouter(prefix="/api/kpis", tags=["KPIs"])
 logger = logging.getLogger(__name__)
@@ -287,6 +288,7 @@ class KPIEngine:
 
 @router.get("")
 def get_kpis(
+    request: Request,
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
     mes_fin: Optional[int] = Query(None, ge=1, le=12),
@@ -298,6 +300,11 @@ def get_kpis(
     excl_exportacion: bool = Query(False),
     excl_pvta: bool = Query(False),
 ):
+    # Vendedor role: force filter to their own code
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
     key = f"kpis:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{grupo_comercial}:{planta}:{mercado}:{excl_exportacion}:{excl_pvta}"
     cached = cache.get(key)

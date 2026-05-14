@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useCallback, useMemo } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useAuth } from './AuthContext'
 
 const FilterContext = createContext(null)
 
@@ -68,6 +69,9 @@ function saveToStorage(filters) {
 }
 
 export function FilterProvider({ children }) {
+  const { user } = useAuth()
+  const vendedorLocked = !!(user?.rol === 'vendedor' && user?.codigo_vendedor)
+
   const [searchParams, setSearchParams] = useSearchParams()
   const [filters, setFilters] = useState(() => {
     // URL params take absolute priority
@@ -77,16 +81,24 @@ export function FilterProvider({ children }) {
   })
   const [compPeriod, setCompPeriod]     = useState(DEFAULT_COMP)
 
+  // Force vendedor filter when role=vendedor
+  useEffect(() => {
+    if (vendedorLocked) {
+      setFilters((prev) => ({ ...prev, vendedor: [user.codigo_vendedor] }))
+    }
+  }, [vendedorLocked, user?.codigo_vendedor])
+
   const update = useCallback((partial) => {
     setFilters((prev) => {
-      const next = { ...prev, ...partial }
+      const patched = vendedorLocked ? { ...partial, vendedor: [user?.codigo_vendedor] } : partial
+      const next = { ...prev, ...patched }
       saveToStorage(next)
       setSearchParams(
         (params) => {
           const p = new URLSearchParams(params)
           for (const key of URL_SYNC_KEYS) {
-            if (!(key in partial)) continue
-            const v = partial[key]
+            if (!(key in patched)) continue
+            const v = patched[key]
             if (ARRAY_KEYS.includes(key)) {
               const arr = Array.isArray(v) ? v : []
               if (arr.length > 0) p.set(key, arr.join(','))
@@ -102,7 +114,7 @@ export function FilterProvider({ children }) {
       )
       return next
     })
-  }, [setSearchParams])
+  }, [setSearchParams, vendedorLocked, user?.codigo_vendedor])
 
   const reset = useCallback(() => {
     setFilters(DEFAULT_FILTERS)
@@ -132,7 +144,7 @@ export function FilterProvider({ children }) {
   }), [filters])
 
   return (
-    <FilterContext.Provider value={{ filters: filtersWithCompat, _raw: filters, update, reset, compPeriod, updateComp, resetComp }}>
+    <FilterContext.Provider value={{ filters: filtersWithCompat, _raw: filters, update, reset, compPeriod, updateComp, resetComp, vendedorLocked }}>
       {children}
     </FilterContext.Provider>
   )

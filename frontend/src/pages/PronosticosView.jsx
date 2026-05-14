@@ -2,12 +2,14 @@
 import { useOutletContext } from 'react-router-dom'
 import {
   ComposedChart, Bar, Line, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine, Cell,
+  Tooltip, ResponsiveContainer, ReferenceLine, Cell, BarChart,
+  Legend,
 } from 'recharts'
 import {
   TrendingUp, Download, RefreshCw, Info, ChevronDown, ChevronUp,
   BarChart2, AlertTriangle, CheckCircle2, Target,
 } from 'lucide-react'
+import { ChartDownloadButton } from '../components/charts/ChartDownloadButton'
 import * as XLSX from 'xlsx'
 import { api } from '../services/api'
 import { useFilters } from '../context/FilterContext'
@@ -339,7 +341,7 @@ export function PronosticosView() {
     XLSX.writeFile(wb, `pronostico-${data.pronostico[0]?.periodo ?? 'ventas'}.xlsx`)
   }
 
-  const { metricas = {}, modelo_usado, balance_mes, promedio_mensual_12m } = data ?? {}
+  const { metricas = {}, modelo_usado, balance_mes, promedio_mensual_12m, backtesting = [] } = data ?? {}
   // Exclude current partial month from total (it belongs to balance_mes)
   const totalPronosticado = data?.pronostico?.filter((p) => !p.es_mes_actual).reduce((s, p) => s + p.forecast, 0) ?? 0
 
@@ -536,8 +538,79 @@ export function PronosticosView() {
             />
           </div>
 
+          {/* Backtesting — accuracy vs actuals */}
+          {backtesting.length > 0 && (
+            <ChartDownloadButton filename="backtesting-precision.png" className="bg-surface-800 rounded-xl border border-surface-700 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-400" />
+                    Precisión del modelo — Real vs Predicho
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Últimos {backtesting.length} meses usados como validación · MAPE:{' '}
+                    <span className={`font-semibold ${metricas.mape < 10 ? 'text-emerald-400' : metricas.mape < 20 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {metricas.mape != null ? `${metricas.mape.toFixed(1)}%` : '—'}
+                    </span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 text-[11px] text-slate-500">
+                  <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-brand-500/70" /> Real</span>
+                  <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-amber-400/70" /> Predicho</span>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={backtesting.map(b => ({ ...b, label: fmtPeriodo(b.periodo) }))} margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={fmtYAxis} tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} width={68} />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null
+                      const real = payload.find(p => p.dataKey === 'actual')?.value
+                      const pred = payload.find(p => p.dataKey === 'predicho')?.value
+                      const errPct = payload[0]?.payload?.error_pct
+                      return (
+                        <div className="bg-surface-800 border border-surface-600 rounded-xl p-3 shadow-xl text-xs space-y-1 min-w-[180px]">
+                          <p className="font-semibold text-slate-200 border-b border-surface-600 pb-1 mb-1">{label}</p>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-brand-300">Real</span>
+                            <span className="font-semibold text-slate-100">{fmtCOPc(real)}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-amber-300">Predicho</span>
+                            <span className="font-semibold text-slate-100">{fmtCOPc(pred)}</span>
+                          </div>
+                          {errPct != null && (
+                            <div className="flex justify-between gap-4 pt-1 border-t border-surface-600/50">
+                              <span className="text-slate-400">Error abs.</span>
+                              <span className={`font-semibold ${errPct < 10 ? 'text-emerald-400' : errPct < 20 ? 'text-amber-400' : 'text-red-400'}`}>{errPct.toFixed(1)}%</span>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }}
+                  />
+                  <Bar dataKey="actual"   fill="#3b82f6" fillOpacity={0.75} radius={[3,3,0,0]} maxBarSize={28} isAnimationActive={false} />
+                  <Bar dataKey="predicho" fill="#f59e0b" fillOpacity={0.75} radius={[3,3,0,0]} maxBarSize={28} isAnimationActive={false} />
+                </BarChart>
+              </ResponsiveContainer>
+              {/* Error per period */}
+              <div className="flex flex-wrap gap-2 mt-3">
+                {backtesting.map(b => (
+                  <div key={b.periodo} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-700/50 text-xs">
+                    <span className="text-slate-400">{fmtPeriodo(b.periodo)}</span>
+                    <span className={`font-semibold ${b.error_pct != null && b.error_pct < 10 ? 'text-emerald-400' : b.error_pct < 20 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {b.error_pct != null ? `${b.error_pct.toFixed(1)}%` : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </ChartDownloadButton>
+          )}
+
           {/* Chart */}
-          <div className="bg-surface-800 rounded-xl border border-surface-700 p-5">
+          <ChartDownloadButton filename="pronostico-ventas.png" className="bg-surface-800 rounded-xl border border-surface-700 p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <h2 className="text-sm font-semibold text-slate-200">Serie histórica y proyección mes a mes</h2>
@@ -620,7 +693,7 @@ export function PronosticosView() {
                 )}
               </ComposedChart>
             </ResponsiveContainer>
-          </div>
+          </ChartDownloadButton>
 
           {/* Forecast table — mes a mes */}
           {data.pronostico.length > 0 && (

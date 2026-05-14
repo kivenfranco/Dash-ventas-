@@ -7,7 +7,8 @@ import math
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from ..deps import vendedor_override
 
 from ..config import get_settings
 from ..database.cache import cache
@@ -53,13 +54,19 @@ def _safe_str(v):
 
 @router.get("")
 def get_hallazgos(
+    request: Request,
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
     excl_exportacion: bool = Query(False),
     excl_pvta: bool = Query(False),
+    vendedor: Optional[str] = None,
 ):
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
-    key = f"hallazgos:{ano}:{mes}:{excl_exportacion}:{excl_pvta}"
+    key = f"hallazgos:{ano}:{mes}:{excl_exportacion}:{excl_pvta}:{vendedor}"
     cached = cache.get(key)
     if cached:
         return cached
@@ -74,6 +81,9 @@ def get_hallazgos(
         excl_cond.append("(UPPER(dd.DESCRIPCION_REGION) NOT LIKE '%%EXPORTACION%%' OR dd.DESCRIPCION_REGION IS NULL)")
     if excl_pvta:
         excl_cond.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)")
+    if vendedor:
+        ven_safe = str(vendedor).replace("'", "''")
+        excl_cond.append(f"fv.CODIGO_VENDEDOR = '{ven_safe}'")
 
     join_str   = " ".join(excl_joins)
     extra_cond = (" AND " + " AND ".join(excl_cond)) if excl_cond else ""
@@ -103,6 +113,8 @@ def get_hallazgos(
             reg_excl_parts.append("dd.DESCRIPCION_REGION != 'ZONA EXPORTACIONES'")
         if excl_pvta:
             reg_excl_parts.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)")
+        if vendedor:
+            reg_excl_parts.append(f"fv.CODIGO_VENDEDOR = '{ven_safe}'")
         reg_excl_str = " AND ".join(reg_excl_parts)
 
         sql_reg = f"""
@@ -125,6 +137,8 @@ def get_hallazgos(
 
         # ── 3. Vendedores vs PP ───────────────────────────────────────────────
         pvta_cond = " AND (UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)" if excl_pvta else ""
+        if vendedor:
+            pvta_cond += f" AND fv.CODIGO_VENDEDOR = '{ven_safe}'"
         sql_vend = f"""
             SELECT fv.CODIGO_VENDEDOR,
                    COALESCE(SUM(fv.VENTAS_NETAS), 0) AS ventas_netas
@@ -160,6 +174,8 @@ def get_hallazgos(
         # ── 4. Stock vs No-Stock con comparación YoY ──────────────────────────
         # Proxy: COMERCIALIZACION line → No Stock, all other lines → Stock
         pvta_cond2 = " AND (UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)" if excl_pvta else ""
+        if vendedor:
+            pvta_cond2 += f" AND fv.CODIGO_VENDEDOR = '{ven_safe}'"
         sql_stock = f"""
             SELECT
                 CASE WHEN UPPER(COALESCE(dgp.LINEA_NEGOCIO, '')) LIKE '%%COMERCIALIZ%%'
@@ -178,6 +194,8 @@ def get_hallazgos(
 
         # ── 5. Clientes en alerta (caída >-20% YoY) con monto en riesgo ──────
         pvta_alert = " AND (UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)" if excl_pvta else ""
+        if vendedor:
+            pvta_alert += f" AND fv.CODIGO_VENDEDOR = '{ven_safe}'"
         export_alert = f" AND (UPPER(dda.DESCRIPCION_REGION) NOT LIKE '%%EXPORTACION%%' OR dda.DESCRIPCION_REGION IS NULL)" if excl_exportacion else ""
         join_alert = f"LEFT JOIN {cfg.TM('DIM_DOMICILIO')} dda ON fv.DOMICILIO_KEY = dda.DOMICILIO_KEY" if excl_exportacion else ""
 

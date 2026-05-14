@@ -125,6 +125,19 @@ html.light-mode .recharts-tooltip-wrapper .border-surface-600 { border-color: #e
 html.light-mode .recharts-tooltip-wrapper .text-slate-200 { color: #1e293b !important; }
 html.light-mode .recharts-tooltip-wrapper .text-slate-400 { color: #64748b !important; }
 
+/* ── Mobile: tablas con scroll horizontal ────────────────────────────────── */
+@media (max-width: 767px) {
+  main table {
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  /* Reduce padding on small screens */
+  main > div {
+    padding: 0.75rem !important;
+  }
+}
+
 /* Recharts overrides */
 .recharts-tooltip-wrapper { outline: none; }
 .recharts-cartesian-grid-horizontal line,

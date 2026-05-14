@@ -11,7 +11,7 @@ import {
 } from 'recharts'
 
 const PALETTE = ['#6366f1','#06b6d4','#10b981','#f59e0b','#f43f5e','#a855f7','#ec4899','#14b8a6','#f97316','#8b5cf6','#3b82f6','#84cc16']
-const C_VN  = '#000F9F'
+const C_VN  = '#818cf8'
 const C_PP  = '#F8A62B'
 const C_ANT = '#1f2937'
 

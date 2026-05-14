@@ -1,9 +1,10 @@
-import { Component } from 'react'
+import { Component, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useFilters } from '../context/FilterContext'
 import { useData } from '../hooks/useData'
 import { api } from '../services/api'
 import { fmtCOP, fmtPct, pctColor, cumpColor, cumpBg, formatPeriod } from '../utils/format'
+import { Store } from 'lucide-react'
 
 class ErrBound extends Component {
   state = { err: null }
@@ -36,10 +37,13 @@ function CumpBar({ value }) {
 export function MercadosView() {
   const { refreshKey } = useOutletContext()
   const { filters }    = useFilters()
+  const [exclPvta, setExclPvta] = useState(true)
+
+  const f = { ...filters, excl_pvta: exclPvta }
 
   const { data, loading, error } = useData(
-    () => api.segments(filters, 'mercado', 30),
-    [filters, refreshKey],
+    () => api.segments(f, 'mercado', 30),
+    [filters, refreshKey, exclPvta],
   )
 
   const period  = formatPeriod(filters.ano, filters.mes, filters.mes_fin)
@@ -51,9 +55,22 @@ export function MercadosView() {
   return (
     <ErrBound>
       <div className="flex flex-col gap-5 animate-fade-in">
-        <div>
-          <h1 className="text-xl font-bold text-slate-100">Mercados</h1>
-          <p className="text-slate-500 text-xs mt-0.5">{period}</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-100">Mercados</h1>
+            <p className="text-slate-500 text-xs mt-0.5">{period}</p>
+          </div>
+          <button
+            onClick={() => setExclPvta((v) => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              exclPvta
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                : 'bg-surface-700 text-slate-400 border-surface-600 hover:text-slate-100'
+            }`}
+          >
+            <Store size={12} />
+            {exclPvta ? 'Sin PVTA' : 'Con PVTA'}
+          </button>
         </div>
 
         <div className="card">

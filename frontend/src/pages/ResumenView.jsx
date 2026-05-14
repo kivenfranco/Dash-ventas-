@@ -98,8 +98,6 @@ function VentasDiariasTable({ data, loading }) {
             <th className="pb-2 font-medium">Fecha</th>
             <th className="pb-2 font-medium text-right">Ventas Netas (COP)</th>
             <th className="pb-2 font-medium text-right">Var día ant.</th>
-            <th className="pb-2 font-medium text-right">Cantidad</th>
-            <th className="pb-2 font-medium text-right">Transacciones</th>
           </tr>
         </thead>
         <tbody>
@@ -110,8 +108,6 @@ function VentasDiariasTable({ data, loading }) {
               <td className={`py-1.5 text-right font-semibold text-xs ${pctColor(d.var_dia_pct)}`}>
                 {d.var_dia_pct != null ? fmtPct(d.var_dia_pct, 1) : '—'}
               </td>
-              <td className="py-1.5 text-right text-slate-400">{fmtInt(d.cantidad)}</td>
-              <td className="py-1.5 text-right text-slate-400">{fmtInt(d.num_transacciones)}</td>
             </tr>
           ))}
         </tbody>
@@ -389,8 +385,8 @@ function PvtaDiariasTable({ data, loading }) {
             <th className="pb-2 font-medium">Día</th>
             <th className="pb-2 font-medium text-right">PVTA MEDELLÍN</th>
             <th className="pb-2 font-medium text-right">PVTA CALI</th>
-            <th className="pb-2 font-medium text-right">PVTANORTE</th>
-            <th className="pb-2 font-medium text-right">PBOGOTÁ</th>
+            <th className="pb-2 font-medium text-right">PVTA NORTE</th>
+            <th className="pb-2 font-medium text-right">P. BOGOTÁ</th>
             <th className="pb-2 font-medium text-right">Total</th>
           </tr>
         </thead>
@@ -437,7 +433,7 @@ function SectionLabel({ children }) {
   return <p className="text-xs font-semibold tracking-widest text-slate-500 uppercase mb-2">{children}</p>
 }
 
-const C_VENTAS = '#000F9F'
+const C_VENTAS = '#818cf8'
 const C_PP     = '#F8A62B'
 
 function RegionesChart({ data, loading, onDrillDown }) {
@@ -466,7 +462,7 @@ function RegionesChart({ data, loading, onDrillDown }) {
         <p className="text-slate-200 font-semibold mb-2">{d.fullName}</p>
         <div className="space-y-1">
           <div className="flex justify-between gap-4">
-            <span style={{ color: C_VENTAS }}>● Ventas</span>
+            <span style={{ color: '#818cf8' }}>● Ventas</span>
             <span className="text-slate-100 font-medium">{fmtCOP(d.ventas)}</span>
           </div>
           {d.pp > 0 && (
@@ -549,8 +545,8 @@ function RegionesChart({ data, loading, onDrillDown }) {
   )
 }
 
-const REGION_COLORS  = ['#000F9F','#F8A62B','#10b981','#8b5cf6','#f43f5e','#06b6d4','#f97316','#ec4899','#84cc16','#a3e635']
-const PLANTA_COLORS  = ['#000F9F','#F8A62B','#10b981','#8b5cf6','#f43f5e','#06b6d4','#f97316','#ec4899','#84cc16']
+const REGION_COLORS  = ['#818cf8','#F8A62B','#10b981','#8b5cf6','#f43f5e','#06b6d4','#f97316','#ec4899','#84cc16','#a3e635']
+const PLANTA_COLORS  = ['#818cf8','#F8A62B','#10b981','#8b5cf6','#f43f5e','#06b6d4','#f97316','#ec4899','#84cc16']
 
 function RegionPieChart({ data, loading }) {
   if (loading) return (
@@ -608,10 +604,10 @@ const PVTA_COLORS2 = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6']
 
 function matchPvta(cod) {
   const c = (cod || '').toUpperCase().replace(/\s/g, '')
-  if (/^PVTACALI/.test(c))  return 'pvta_cali'
-  if (/^PVTANORT/.test(c))  return 'pvtanorte'
+  if (/^PVTACALI/.test(c))           return 'pvta_cali'
+  if (/^PVTANORT/.test(c))           return 'pvtanorte'
   if (/^PBOGOTA|^P\.BOGOTA/.test(c)) return 'pbogota'
-  if (/^PVTA/.test(c))      return 'pvta_medellin'
+  if (/^PVTA/.test(c))               return 'pvta_medellin'
   return null
 }
 

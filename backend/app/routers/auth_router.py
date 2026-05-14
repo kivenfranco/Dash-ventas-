@@ -11,6 +11,10 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 from ..auth import (
     authenticate_user, create_token, hash_password,
@@ -57,14 +61,18 @@ def _require_admin(request: Request):
 def login(body: LoginBody, request: Request):
     client_ip = request.client.host if request.client else "unknown"
     if not check_login_rate_limit(client_ip):
+        logger.warning(f"Login rate limit reached for IP: {client_ip}")
         raise HTTPException(
             status_code=429,
             detail="Demasiados intentos fallidos. Espera 5 minutos antes de intentar de nuevo.",
         )
+    logger.info(f"Intento de login para: {body.email} desde {client_ip}")
     user = authenticate_user(body.email, body.password)
     if not user:
         record_failed_login(client_ip)
+        logger.error(f"Login fallido para: {body.email} (Credenciales incorrectas)")
         raise HTTPException(status_code=401, detail="Credenciales incorrectas.")
+    logger.info(f"Login exitoso: {body.email}")
     token = create_token(user)
     return {
         "access_token": token,

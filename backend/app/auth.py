@@ -163,6 +163,9 @@ async def auth_middleware(request: Request, call_next):
     # Allow public routes
     if any(path == p or path.startswith(p + "/") for p in _PUBLIC):
         return await call_next(request)
+    
+    logger.info(f"Middleware verificando ruta: {path}")
+
 
     # Extract Bearer token
     auth_header = request.headers.get("Authorization", "")

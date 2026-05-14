@@ -212,6 +212,10 @@ def get_config():
     }
 
 
+class EmailTestBody(BaseModel):
+    destinatario: Optional[str] = None
+
+
 class TeamsTestBody(BaseModel):
     mensaje: Optional[str] = None
 
@@ -219,6 +223,26 @@ class TeamsTestBody(BaseModel):
 class WhatsAppTestBody(BaseModel):
     numero: str
     mensaje: Optional[str] = None
+
+
+@router.post("/email-test")
+async def enviar_email_test(body: EmailTestBody):
+    """Envía un email de prueba al destinatario (por defecto SMTP_USER)."""
+    from ..services.email_service import send_email
+    cfg = get_settings()
+    if not cfg.SMTP_USER or not cfg.SMTP_PASSWORD:
+        raise HTTPException(status_code=400, detail="SMTP_USER y SMTP_PASSWORD no configurados en .env")
+    to = body.destinatario or cfg.SMTP_USER
+    html = """<div style="font-family:Arial,sans-serif;padding:24px;background:#0d1117;color:#e2e8f0;border-radius:8px;">
+      <h2 style="color:#818cf8;">✅ BI Ventas — Prueba de correo</h2>
+      <p>Si ves este mensaje, el envío de emails está funcionando correctamente.</p>
+      <p style="color:#64748b;font-size:12px;">Enviado desde el sistema BI Ventas ALICO SAS BIC.</p>
+    </div>"""
+    try:
+        send_email(to, [], "BI Ventas — Prueba de correo ✅", html)
+        return {"status": "ok", "mensaje": f"Email de prueba enviado a {to}."}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Error al enviar email: {exc}")
 
 
 @router.post("/teams-test")

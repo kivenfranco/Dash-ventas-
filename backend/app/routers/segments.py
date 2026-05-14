@@ -5,9 +5,10 @@ import logging
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from ..config import get_settings
+from ..deps import vendedor_override
 from ..database.cache import cache
 from ..database.snowflake_connector import connector
 
@@ -125,6 +126,7 @@ def _build_sql(cfg, group_by, ano, mes, region, vendedor, grupo_comercial, plant
 
 @router.get("")
 def get_segments(
+    request: Request,
     group_by: str = Query("region", pattern=_VALID_GROUPS),
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
@@ -138,6 +140,10 @@ def get_segments(
     excl_exportacion: bool = Query(False),
     excl_pvta: bool = Query(False),
 ):
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
     key = f"seg:{group_by}:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{grupo_comercial}:{planta}:{top_n}:{compare}:{excl_exportacion}:{excl_pvta}"
     cached = cache.get(key)

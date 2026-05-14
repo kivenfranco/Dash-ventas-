@@ -12,7 +12,7 @@ import {
 
 const PALETTE = ['#6366f1','#06b6d4','#10b981','#f59e0b','#f43f5e','#a855f7','#ec4899','#14b8a6','#f97316','#8b5cf6']
 const C_METROS = '#06b6d4'
-const C_VENTAS = '#000F9F'
+const C_VENTAS = '#818cf8'
 
 function fmtM(v) {
   if (v == null || isNaN(v)) return '—'

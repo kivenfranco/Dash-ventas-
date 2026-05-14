@@ -4,6 +4,7 @@ import { fmtCOP } from '../utils/format'
 import {
   Mail, Send, Settings, Search, CheckCircle, AlertTriangle,
   UserCheck, UserX, Eye, Trash2, RefreshCw, Info, Bell,
+  MessageSquare, Smartphone,
 } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -43,7 +44,7 @@ export function NotificacionesView() {
   const [config,      setConfig]      = useState(null)
   const [loading,     setLoading]     = useState(true)
   const [search,      setSearch]      = useState('')
-  const [tab,         setTab]         = useState('mapeo')   // 'mapeo' | 'enviar'
+  const [tab,         setTab]         = useState('mapeo')   // 'mapeo' | 'enviar' | 'canales'
   const [envioLog,    setEnvioLog]    = useState(null)
   const [enviando,    setEnviando]    = useState(false)
   const [previewCod,  setPreviewCod]  = useState(null)
@@ -155,7 +156,7 @@ export function NotificacionesView() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-surface-700">
-        {[['mapeo', 'Configurar Mapeo'], ['enviar', 'Enviar Alertas']].map(([key, label]) => (
+        {[['mapeo', 'Configurar Mapeo'], ['enviar', 'Enviar Alertas'], ['canales', 'Canales y Pruebas']].map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -299,6 +300,11 @@ export function NotificacionesView() {
         </div>
       )}
 
+      {/* ── TAB: Canales ── */}
+      {tab === 'canales' && (
+        <CanalesTab config={config} />
+      )}
+
       {/* Preview modal */}
       {previewCod && (
         <PreviewModal
@@ -306,6 +312,183 @@ export function NotificacionesView() {
           onClose={() => setPreviewCod(null)}
         />
       )}
+    </div>
+  )
+}
+
+// ── Canales y pruebas ────────────────────────────────────────────────────────
+
+function ChannelCard({ icon: Icon, title, configured, children }) {
+  return (
+    <div className={`card border ${configured ? 'border-surface-700' : 'border-surface-700/50'}`}>
+      <div className="flex items-center gap-3 mb-4">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${configured ? 'bg-emerald-500/15' : 'bg-surface-700'}`}>
+          <Icon size={16} className={configured ? 'text-emerald-400' : 'text-slate-500'} />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-slate-100">{title}</span>
+            {configured
+              ? <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">Configurado</span>
+              : <span className="text-xs px-2 py-0.5 rounded-full bg-surface-700 text-slate-500 border border-surface-600">No configurado</span>
+            }
+          </div>
+        </div>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function CanalesTab({ config }) {
+  const [emailDest,    setEmailDest]    = useState('')
+  const [teamsMsg,     setTeamsMsg]     = useState('')
+  const [waNumero,     setWaNumero]     = useState('')
+  const [waMsg,        setWaMsg]        = useState('')
+  const [emailLog,     setEmailLog]     = useState(null)
+  const [teamsLog,     setTeamsLog]     = useState(null)
+  const [waLog,        setWaLog]        = useState(null)
+  const [sending,      setSending]      = useState(null)
+
+  const testEmail = async () => {
+    setSending('email'); setEmailLog(null)
+    try {
+      const r = await api.notifEmailTest(emailDest ? { destinatario: emailDest } : {})
+      setEmailLog({ ok: true, msg: r.mensaje })
+    } catch (e) {
+      setEmailLog({ ok: false, msg: e?.response?.data?.detail || String(e) })
+    }
+    setSending(null)
+  }
+
+  const testTeams = async () => {
+    setSending('teams'); setTeamsLog(null)
+    try {
+      const r = await api.notifTeamsTest(teamsMsg ? { mensaje: teamsMsg } : {})
+      setTeamsLog({ ok: true, msg: r.mensaje })
+    } catch (e) {
+      setTeamsLog({ ok: false, msg: e?.response?.data?.detail || String(e) })
+    }
+    setSending(null)
+  }
+
+  const testWhatsApp = async () => {
+    if (!waNumero) return
+    setSending('wa'); setWaLog(null)
+    try {
+      const r = await api.notifWhatsAppTest({ numero: waNumero, ...(waMsg ? { mensaje: waMsg } : {}) })
+      setWaLog({ ok: true, msg: r.mensaje })
+    } catch (e) {
+      setWaLog({ ok: false, msg: e?.response?.data?.detail || String(e) })
+    }
+    setSending(null)
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-xs text-slate-500">
+        Configura cada canal en <code className="bg-surface-700 px-1 rounded">backend/.env</code> y prueba la conexión.
+        Las alertas semanales solo usan Email por ahora — Teams y WhatsApp son notificaciones adicionales opcionales.
+      </p>
+
+      {/* Email */}
+      <ChannelCard icon={Mail} title="Correo electrónico (SMTP)" configured={config?.smtp_configurado}>
+        {config?.smtp_configurado ? (
+          <p className="text-xs text-slate-400 mb-3">
+            Enviando como <strong className="text-slate-200">{config.smtp_user}</strong> vía {config.smtp_host}:{config.smtp_port}
+          </p>
+        ) : (
+          <pre className="text-xs bg-surface-800 rounded p-3 text-slate-300 leading-5 mb-3">{`SMTP_USER=kfranco@alico-sa.com\nSMTP_PASSWORD=tu_contraseña_de_aplicación`}</pre>
+        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="email"
+            placeholder={`Enviar a (default: ${config?.smtp_user || 'SMTP_USER'})`}
+            value={emailDest}
+            onChange={(e) => setEmailDest(e.target.value)}
+            className="bg-surface-700 border border-surface-600 text-slate-100 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 flex-1 min-w-48"
+          />
+          <button
+            onClick={testEmail}
+            disabled={sending === 'email' || !config?.smtp_configurado}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 disabled:bg-surface-700 disabled:text-slate-500 text-white rounded-lg text-xs font-semibold transition-colors"
+          >
+            {sending === 'email' ? <RefreshCw size={11} className="animate-spin" /> : <Send size={11} />}
+            Enviar prueba
+          </button>
+        </div>
+        {emailLog && <TestLog log={emailLog} />}
+      </ChannelCard>
+
+      {/* Teams */}
+      <ChannelCard icon={MessageSquare} title="Microsoft Teams (Webhook)" configured={config?.teams_configurado}>
+        {!config?.teams_configurado && (
+          <pre className="text-xs bg-surface-800 rounded p-3 text-slate-300 leading-5 mb-3">{`TEAMS_WEBHOOK_URL=https://outlook.office.com/webhook/...`}</pre>
+        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="text"
+            placeholder="Mensaje de prueba (opcional)"
+            value={teamsMsg}
+            onChange={(e) => setTeamsMsg(e.target.value)}
+            className="bg-surface-700 border border-surface-600 text-slate-100 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 flex-1 min-w-48"
+          />
+          <button
+            onClick={testTeams}
+            disabled={sending === 'teams' || !config?.teams_configurado}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 disabled:bg-surface-700 disabled:text-slate-500 text-white rounded-lg text-xs font-semibold transition-colors"
+          >
+            {sending === 'teams' ? <RefreshCw size={11} className="animate-spin" /> : <Send size={11} />}
+            Probar Teams
+          </button>
+        </div>
+        {teamsLog && <TestLog log={teamsLog} />}
+      </ChannelCard>
+
+      {/* WhatsApp */}
+      <ChannelCard icon={Smartphone} title="WhatsApp Business API" configured={config?.whatsapp_configurado}>
+        {!config?.whatsapp_configurado && (
+          <pre className="text-xs bg-surface-800 rounded p-3 text-slate-300 leading-5 mb-3">{`WHATSAPP_TOKEN=EAAxxxx\nWHATSAPP_PHONE_ID=1234567890`}</pre>
+        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="tel"
+            placeholder="Número destino (+57300...)"
+            value={waNumero}
+            onChange={(e) => setWaNumero(e.target.value)}
+            className="bg-surface-700 border border-surface-600 text-slate-100 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 w-44"
+          />
+          <input
+            type="text"
+            placeholder="Mensaje (opcional)"
+            value={waMsg}
+            onChange={(e) => setWaMsg(e.target.value)}
+            className="bg-surface-700 border border-surface-600 text-slate-100 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 flex-1 min-w-32"
+          />
+          <button
+            onClick={testWhatsApp}
+            disabled={sending === 'wa' || !config?.whatsapp_configurado || !waNumero}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 disabled:bg-surface-700 disabled:text-slate-500 text-white rounded-lg text-xs font-semibold transition-colors"
+          >
+            {sending === 'wa' ? <RefreshCw size={11} className="animate-spin" /> : <Send size={11} />}
+            Probar WA
+          </button>
+        </div>
+        {waLog && <TestLog log={waLog} />}
+      </ChannelCard>
+    </div>
+  )
+}
+
+function TestLog({ log }) {
+  return (
+    <div className={`mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
+      log.ok
+        ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300'
+        : 'bg-red-500/10 border border-red-500/25 text-red-300'
+    }`}>
+      {log.ok ? <CheckCircle size={12} className="mt-0.5 flex-shrink-0" /> : <AlertTriangle size={12} className="mt-0.5 flex-shrink-0" />}
+      <span>{log.msg}</span>
     </div>
   )
 }

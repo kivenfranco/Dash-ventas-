@@ -81,9 +81,9 @@ export const api = {
   ventasDiarias:     (filters, limit) => http.get('/ventas-diarias', { params: { ...toParams(filters), limit: limit || 90 } }).then((r) => r.data),
   ventasDiariasPvta: (filters, limit) => http.get('/ventas-diarias/pvta', { params: { ano: filters.ano, ...(filters.mes ? { mes: filters.mes } : {}), ...(filters.mes_fin && filters.mes_fin !== filters.mes ? { mes_fin: filters.mes_fin } : {}), limit: limit || 120 } }).then((r) => r.data),
   presupuesto:     (filters, groupBy, topN) => http.get('/presupuesto', { params: { ...toParams(filters), group_by: groupBy, top_n: topN || 30, ...(filters.excl_pvta === false ? { excl_pvta: false } : {}) } }).then((r) => r.data),
-  clientesEstados:   (filters)             => http.get('/clientes/estados',   { params: toParams(filters) }).then((r) => r.data),
-  clientesLista:     (filters, estado, topN) => http.get('/clientes/lista',   { params: { ...toParams(filters), ...(estado ? { estado } : {}), top_n: topN || 500 } }).then((r) => r.data),
-  clientesBreakdown: (filters)             => http.get('/clientes/breakdown', { params: toParams(filters) }).then((r) => r.data),
+  clientesEstados:   (filters)             => http.get('/clientes/estados',   { params: { ...toParams(filters), ...(filters.excl_ecommerce ? { excl_ecommerce: true } : {}), ...(filters.excl_sin_vendedor ? { excl_sin_vendedor: true } : {}), ...(filters.excl_grandes ? { excl_grandes: true } : {}) } }).then((r) => r.data),
+  clientesLista:     (filters, estado, topN) => http.get('/clientes/lista',   { params: { ...toParams(filters), ...(estado ? { estado } : {}), top_n: topN || 500, ...(filters.excl_ecommerce ? { excl_ecommerce: true } : {}), ...(filters.excl_sin_vendedor ? { excl_sin_vendedor: true } : {}), ...(filters.excl_grandes ? { excl_grandes: true } : {}) } }).then((r) => r.data),
+  clientesBreakdown: (filters)             => http.get('/clientes/breakdown', { params: { ...toParams(filters), ...(filters.excl_ecommerce ? { excl_ecommerce: true } : {}), ...(filters.excl_sin_vendedor ? { excl_sin_vendedor: true } : {}), ...(filters.excl_grandes ? { excl_grandes: true } : {}) } }).then((r) => r.data),
 
   pronosticos: (params) => http.get('/pronosticos', { params }).then((r) => r.data),
 
@@ -131,6 +131,7 @@ export const api = {
   notifEnviar:       (body)           => http.post('/notificaciones/enviar', body).then((r) => r.data),
   notifEnviarUno:    (cod, body)      => http.post(`/notificaciones/enviar/${cod}`, body).then((r) => r.data),
   notifPreview:      (cod, ano, mes)  => http.get(`/notificaciones/preview/${cod}`, { params: { ...(ano ? { ano } : {}), ...(mes ? { mes } : {}) } }).then((r) => r.data),
+  notifEmailTest:    (body)           => http.post('/notificaciones/email-test', body).then((r) => r.data),
   notifTeamsTest:    (body)           => http.post('/notificaciones/teams-test', body).then((r) => r.data),
   notifWhatsAppTest: (body)           => http.post('/notificaciones/whatsapp-test', body).then((r) => r.data),
 

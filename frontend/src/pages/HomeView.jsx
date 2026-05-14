@@ -92,9 +92,8 @@ export function HomeView() {
             </div>
             
             <p className="text-slate-400 text-lg md:text-xl leading-relaxed max-w-3xl">
-              Bienvenido al centro de mando <span className="text-slate-100 font-semibold italic">comercial</span>. 
-              Transformamos datos en valor estratégico para liderar el mercado con precisión, 
-              visión de futuro y analítica de alto nivel.
+              Bienvenidos al <span className="text-slate-100 font-semibold">Centro de Inteligencia Comercial</span>.{' '}
+              Transformamos datos en decisiones y decisiones en crecimiento real.
             </p>
           </div>
         </div>

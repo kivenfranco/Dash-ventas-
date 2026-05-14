@@ -10,7 +10,8 @@ import logging
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from ..deps import vendedor_override
 
 from ..config import get_settings
 from ..database.cache import cache
@@ -291,6 +292,7 @@ def _organico(cfg, ano, mes, region, vendedor, grupo_comercial, planta, excl_exp
 
 @router.get("")
 def get_presupuesto(
+    request: Request,
     group_by: str = Query("region", pattern=_VALID),
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
@@ -303,6 +305,9 @@ def get_presupuesto(
     excl_exportacion: bool = Query(False),
     excl_pvta: bool = Query(False),
 ):
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
     cfg = get_settings()
     key = (
         f"pp:{group_by}:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{grupo_comercial}"

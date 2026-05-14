@@ -8,7 +8,8 @@ from datetime import date
 from typing import Optional
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from ..deps import vendedor_override
 
 from ..config import get_settings
 from ..database.cache import cache
@@ -20,14 +21,20 @@ logger = logging.getLogger(__name__)
 
 @router.get("")
 def get_abcxyz(
+    request: Request,
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
     mes_fin: Optional[int] = Query(None, ge=1, le=12),
     excl_pvta: bool = Query(True),
+    vendedor: Optional[str] = None,
     top_n: int = Query(500, ge=10, le=2000),
 ):
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
-    key = f"abcxyz_cli:{ano}:{mes}:{mes_fin}:{excl_pvta}:{top_n}"
+    key = f"abcxyz_cli:{ano}:{mes}:{mes_fin}:{excl_pvta}:{vendedor}:{top_n}"
     if (hit := cache.get(key)):
         return hit
 
@@ -44,6 +51,9 @@ def get_abcxyz(
 
     if excl_pvta:
         where_parts.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%' OR fv.CODIGO_VENDEDOR IS NULL)")
+    if vendedor:
+        ven_safe = str(vendedor).replace("'", "''")
+        where_parts.append(f"fv.CODIGO_VENDEDOR = '{ven_safe}'")
 
     where_clause = " AND ".join(where_parts)
 

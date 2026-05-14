@@ -474,6 +474,7 @@ def get_pronosticos(
     n = len(series_full)
     test_n = min(6, max(2, n // 5))
     metricas: dict = {}
+    backtesting: list = []
     if test_n >= 2 and n - test_n >= 4:
         train_s, test_s = series_full[: n - test_n], series_full[n - test_n:]
         try:
@@ -497,6 +498,18 @@ def get_pronosticos(
             sw = _sliding_window_metrics(series_full, modelo_final)
             if sw:
                 metricas["cv"] = sw
+
+            # Backtesting detail — period-level actual vs predicted
+            val_periods = train_historico[-test_n:]
+            for h_item, actual_v, pred_v in zip(val_periods, test_s, val_pred):
+                err_pct = round(abs((actual_v - pred_v) / actual_v * 100), 2) if actual_v != 0 else None
+                backtesting.append({
+                    "periodo":   h_item["periodo"],
+                    "mes":       h_item["mes"],
+                    "actual":    round(float(actual_v), 2),
+                    "predicho":  round(float(pred_v), 2),
+                    "error_pct": err_pct,
+                })
         except Exception as exc:
             logger.warning("Metrics error: %s", exc)
 
@@ -511,6 +524,7 @@ def get_pronosticos(
         "modelo_usado": modelo_final,
         "modelo_solicitado": modelo,
         "metricas": metricas,
+        "backtesting": backtesting,
         "balance_mes": balance_mes,
         "promedio_mensual_12m": promedio_historico,
         "excl_outliers_aplicado": excl_outliers,

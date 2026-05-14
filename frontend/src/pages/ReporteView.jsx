@@ -69,15 +69,18 @@ export function ReporteView() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
+      const exclPvta = filters.excl_pvta !== false
+      const region   = filters._regiones?.[0] ?? filters.region ?? null
+      const vendedor = filters._vendedores?.[0] ?? filters.vendedor ?? null
       const [k, a, h, rfm, churn, abc, pareto, clv, tr, reg] = await Promise.allSettled([
         api.kpis(filters),
         api.alertas(filters, -20, true),
         api.hallazgos(filters),
-        api.rfm(filters.ano, filters.mes, true, 500, filters.mes_fin),
-        api.churn(filters.ano, true, 200),
-        api.abcxyz(filters.ano, filters.mes, true, 500, filters.mes_fin),
-        api.getClientesPareto(filters.ano, filters.mes, 'region', null, filters.mes_fin),
-        api.clv(filters.ano, true, 200),
+        api.rfm(filters.ano, filters.mes, exclPvta, 500, filters.mes_fin),
+        api.churn(filters.ano, exclPvta, 200),
+        api.abcxyz(filters.ano, filters.mes, exclPvta, 500, filters.mes_fin),
+        api.getClientesPareto(filters.ano, filters.mes, 'region', null, filters.mes_fin, exclPvta, filters.excl_exportacion ?? false, region, vendedor),
+        api.clv(filters.ano, exclPvta, 200),
         api.trends(filters),
         api.presupuesto(filters, 'region', 20),
       ])
@@ -97,6 +100,24 @@ export function ReporteView() {
   useEffect(() => { load() }, [load])
 
   const period = formatPeriodo(filters.ano, filters.mes, filters.mes_fin)
+
+  // Build active-filter context for the report cover and narrative
+  const filterCtx = []
+  const _r  = filters._regiones?.length   ? filters._regiones.join(', ')            : filters.region           || null
+  const _v  = filters._vendedores?.length  ? filters._vendedores.join(', ')          : filters.vendedor         || null
+  const _gc = filters._grupos_comerciales?.length ? filters._grupos_comerciales.join(', ') : filters.grupo_comercial || null
+  const _pl = filters._plantas?.length     ? filters._plantas.join(', ')             : filters.planta           || null
+  const _me = filters._mercados?.length    ? filters._mercados.join(', ')            : filters.mercado          || null
+  if (_v)  filterCtx.push({ label: 'Asesor',           value: _v  })
+  if (_r)  filterCtx.push({ label: 'Región',           value: _r  })
+  if (_gc) filterCtx.push({ label: 'Grupo Comercial',  value: _gc })
+  if (_pl) filterCtx.push({ label: 'Línea de Negocio', value: _pl })
+  if (_me) filterCtx.push({ label: 'Mercado',          value: _me })
+  const isFiltered  = filterCtx.length > 0
+  const scopeTitle  = isFiltered ? filterCtx.map((f) => `${f.label}: ${f.value}`).join(' · ') : 'Alcance General'
+  const scopeNarr   = isFiltered
+    ? `Este informe analiza el desempeño de <strong>${filterCtx.map((f) => `${f.label} ${f.value}`).join(', ')}</strong> durante ${period}.`
+    : `Este informe resume el desempeño comercial global de ALICO SAS BIC durante ${period}.`
 
   const alertasCriticas = (alertas?.clientes || []).filter((c) => c.variacion_yoy < -30).slice(0, 10)
   const alertasRiesgo   = (alertas?.clientes || []).filter((c) => c.variacion_yoy >= -30 && c.variacion_yoy < -10).slice(0, 10)
@@ -168,14 +189,30 @@ export function ReporteView() {
           {/* Cover */}
           <div className="bg-surface-800 border border-surface-700 rounded-2xl p-6 print:border-0 print:bg-white print:border-b-2 print:border-gray-800">
             <div className="flex items-start justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-100 print:text-black">Reporte Ejecutivo de Ventas</h1>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl font-bold text-slate-100 print:text-black">
+                  Reporte Ejecutivo de Ventas
+                </h1>
                 <p className="text-sm text-slate-400 print:text-gray-600 mt-1">ALICO SAS BIC · Centro de Inteligencia de Negocio</p>
-                <p className="text-sm text-slate-300 print:text-gray-800 mt-2 font-medium">{period}</p>
+                <p className="text-sm text-slate-300 print:text-gray-800 mt-2 font-semibold">{period}</p>
+                {isFiltered ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {filterCtx.map((f, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-600/20 text-brand-300 border border-brand-500/30 print:bg-blue-50 print:text-blue-800 print:border-blue-300">
+                        <span className="text-brand-500 print:text-blue-500">{f.label}:</span> {f.value}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500 print:text-gray-500">Alcance: todas las regiones, asesores y canales</p>
+                )}
               </div>
-              <div className="text-right">
+              <div className="text-right ml-4 shrink-0">
                 <p className="text-xs text-slate-500 print:text-gray-500">Generado el</p>
                 <p className="text-sm text-slate-300 print:text-gray-700 font-medium">{HOY}</p>
+                <p className={`mt-2 text-xs font-bold px-2 py-0.5 rounded-full ${isFiltered ? 'bg-brand-600/20 text-brand-300 print:bg-blue-100 print:text-blue-800' : 'bg-surface-700 text-slate-400 print:bg-gray-100 print:text-gray-600'}`}>
+                  {isFiltered ? 'Segmentado' : 'General'}
+                </p>
               </div>
             </div>
           </div>
@@ -184,6 +221,10 @@ export function ReporteView() {
           {(kpis || rfmTotal > 0 || churnRes.Alto > 0) && (
             <Section title="Resumen Ejecutivo">
               <ul className="space-y-2 text-xs">
+                <li className="flex gap-2 p-2.5 rounded-lg border border-surface-600 bg-surface-800 print:bg-white print:border-gray-200">
+                  <span className="font-bold text-brand-400 print:text-black shrink-0">▶</span>
+                  <span className="text-slate-300 print:text-black" dangerouslySetInnerHTML={{ __html: scopeNarr }} />
+                </li>
                 {kpis?.variacion_yoy != null && (
                   <li className={`flex gap-2 p-2.5 rounded-lg border ${kpis.variacion_yoy >= 0 ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-red-500/20 bg-red-500/5'} print:bg-white print:border-gray-200`}>
                     <span className={`font-bold ${kpis.variacion_yoy >= 0 ? 'text-emerald-400' : 'text-red-400'} print:text-black shrink-0`}>▶</span>
@@ -284,7 +325,7 @@ export function ReporteView() {
                       <Legend wrapperStyle={{ fontSize: 11 }} />
                       <Bar dataKey="ant"    name="Año Ant."   fill="#4b5563" radius={[2,2,0,0]} barSize={12} />
                       <Bar dataKey="pp"     name="Presupuesto" fill="#F8A62B" radius={[2,2,0,0]} barSize={12} fillOpacity={0.75} />
-                      <Bar dataKey="ventas" name="Ventas"     fill="#000F9F" radius={[2,2,0,0]} barSize={12} />
+                      <Bar dataKey="ventas" name="Ventas"     fill="#818cf8" radius={[2,2,0,0]} barSize={12} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -347,7 +388,7 @@ export function ReporteView() {
                         labelFormatter={(l, p) => p?.[0]?.payload?.full || l}
                         labelStyle={{ color: '#e2e8f0' }}
                       />
-                      <Bar dataKey="ventas" name="Ventas" fill="#000F9F" radius={[0,3,3,0]} barSize={14} />
+                      <Bar dataKey="ventas" name="Ventas" fill="#818cf8" radius={[0,3,3,0]} barSize={14} />
                       <Bar dataKey="pp"     name="PP"     fill="#F8A62B" radius={[0,3,3,0]} barSize={14} fillOpacity={0.7} />
                     </BarChart>
                   </ResponsiveContainer>

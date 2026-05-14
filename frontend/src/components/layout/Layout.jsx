@@ -11,55 +11,56 @@ import {
   Lightbulb, BotMessageSquare, LayoutGrid, Globe, Target, BookOpen, Rocket, Mail, LineChart, Ruler,
   Heart, Trophy, Zap, GitBranch, ShoppingCart, Sliders, FileText,
   Search, LogOut, UserCircle, ChevronDown, BarChart2, GitMerge, UserX, PieChart, Shield, Sun, Moon,
-  Layers, Thermometer, GitCompareArrows, ShieldAlert,
+  Layers, Thermometer, GitCompareArrows, ShieldAlert, Menu, X,
 } from 'lucide-react'
 
 const TABS = [
-  // ── 0. Inicio ─────────────────────────────────────────────────────────────
-  { to: '/',               label: 'Inicio',           icon: LayoutDashboard  },
-  // ── 1. Monitoreo diario ───────────────────────────────────────────────────
-  { to: '/resumen',        label: 'Resumen',          icon: BarChart2        },
-  { to: '/tendencia',      label: 'Tendencia',         icon: TrendingUp       },
+  // ── 1. Vista principal ────────────────────────────────────────────────────
+  { to: '/',               label: 'Inicio',            icon: LayoutDashboard  },
+  { to: '/resumen',        label: 'Resumen',           icon: BarChart2        },
+  // ── 2. Alertas y seguimiento ──────────────────────────────────────────────
   { to: '/alertas',        label: 'Alertas',           icon: BellRing         },
-  { to: '/anomalias',      label: 'Anomalías',         icon: Zap              },
   { to: '/hallazgos',      label: 'Hallazgos',         icon: Lightbulb        },
   { to: '/oportunidades',  label: 'Oportunidades',     icon: Rocket           },
-  // ── 2. Análisis dimensional ───────────────────────────────────────────────
-  { to: '/desempeno',      label: 'Desempeño Global',  icon: Activity         },
+  { to: '/anomalias',      label: 'Anomalías',         icon: Zap              },
+  // ── 3. Análisis dimensional ───────────────────────────────────────────────
   { to: '/vendedores',     label: 'Vendedores',        icon: Users2           },
-  { to: '/regiones',       label: 'Regiones',          icon: MapPin           },
   { to: '/clientes',       label: 'Clientes',          icon: Users            },
-  { to: '/productos',      label: 'Productos',         icon: Package          },
-  { to: '/mercados',       label: 'Mercados',          icon: Globe            },
-  { to: '/dimensiones',    label: 'Dimensiones',       icon: LayoutGrid       },
-  // ── 3. Financiero y presupuesto ───────────────────────────────────────────
   { to: '/presupuesto',    label: 'Presupuesto',       icon: Target           },
+  { to: '/tendencia',      label: 'Tendencia',         icon: TrendingUp       },
+  { to: '/regiones',       label: 'Regiones',          icon: MapPin           },
+  { to: '/productos',      label: 'Productos',         icon: Package          },
+  // ── 4. Financiero ────────────────────────────────────────────────────────
   { to: '/pvm',            label: 'PVM',               icon: Layers           },
-  { to: '/estacionalidad', label: 'Estacionalidad',    icon: Thermometer      },
   { to: '/pronosticos',    label: 'Pronósticos',       icon: LineChart        },
+  { to: '/estacionalidad', label: 'Estacionalidad',    icon: Thermometer      },
   { to: '/comercializacion', label: 'Comercialización', icon: Ruler           },
-  // ── 4. Análisis avanzado de clientes ─────────────────────────────────────
+  // ── 5. Análisis avanzado de clientes ─────────────────────────────────────
   { to: '/clientes-pareto', label: 'Pareto Clientes',  icon: PieChart         },
   { to: '/rfm',            label: 'RFM',               icon: PieChart         },
   { to: '/abcxyz',         label: 'ABC/XYZ',           icon: BarChart2        },
-  { to: '/clv',            label: 'CLV',               icon: Activity         },
   { to: '/churn',          label: 'Churn',             icon: UserX            },
-  { to: '/riesgo-cliente', label: 'Riesgo Cliente',    icon: ShieldAlert      },
   { to: '/score-salud',    label: 'Score Salud',       icon: Heart            },
+  { to: '/riesgo-cliente', label: 'Riesgo Cliente',    icon: ShieldAlert      },
+  { to: '/clv',            label: 'CLV',               icon: Activity         },
   { to: '/cohort',         label: 'Cohortes',          icon: GitBranch        },
   { to: '/migracion-rfm',  label: 'Migración RFM',     icon: GitCompareArrows },
-  // ── 5. Análisis de producto y canasta ─────────────────────────────────────
+  // ── 6. Análisis de producto y canasta ─────────────────────────────────────
   { to: '/kpis-producto',  label: 'KPIs Producto',     icon: BarChart2        },
   { to: '/ranking',        label: 'Ranking',           icon: Trophy           },
   { to: '/canasta',        label: 'Canasta',           icon: ShoppingCart     },
   { to: '/cross-selling',  label: 'Cross-Selling',     icon: GitMerge         },
-  // ── 6. Herramientas ───────────────────────────────────────────────────────
-  { to: '/simulador',      label: 'Simulador',         icon: Sliders          },
+  // ── 7. Exploración y dimensiones ─────────────────────────────────────────
+  { to: '/desempeno',      label: 'Desempeño Global',  icon: Activity         },
+  { to: '/mercados',       label: 'Mercados',          icon: Globe            },
+  { to: '/dimensiones',    label: 'Dimensiones',       icon: LayoutGrid       },
+  // ── 8. Herramientas ───────────────────────────────────────────────────────
   { to: '/agente',         label: 'Agente BI',         icon: BotMessageSquare },
+  { to: '/simulador',      label: 'Simulador',         icon: Sliders          },
   { to: '/notificaciones', label: 'Notificaciones',    icon: Mail             },
   { to: '/reporte',        label: 'Reporte PDF',       icon: FileText         },
   { to: '/diccionario',    label: 'Diccionario',       icon: BookOpen         },
-  // ── 7. Sistema ────────────────────────────────────────────────────────────
+  // ── 9. Sistema ────────────────────────────────────────────────────────────
   { to: '/admin',          label: 'Administración',    icon: Shield, adminOnly: true },
 ]
 
@@ -197,64 +198,116 @@ function useLightMode() {
 }
 
 function TabBar({ onRefresh, refreshing }) {
-  const location      = useLocation()
-  const { user }      = useAuth()
+  const location             = useLocation()
+  const { user }             = useAuth()
   const [light, toggleLight] = useLightMode()
-  const visibleTabs   = TABS.filter(t => !t.adminOnly || user?.rol === 'admin')
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const visibleTabs          = TABS.filter(t => !t.adminOnly || user?.rol === 'admin')
+
+  // Close drawer on route change
+  useEffect(() => { setMobileOpen(false) }, [location.pathname])
+
+  // Lock body scroll when drawer is open
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [mobileOpen])
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-surface-900 border-b border-surface-700">
-      {/* Brand row */}
-      <div className="flex items-center justify-between px-6 h-12 border-b border-surface-700/50">
-        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <img src={logoAlico} alt="ALICO" className="h-7 w-7 rounded-md object-contain" />
-          <div className="flex flex-col md:flex-row md:items-center md:gap-2">
-            <span className="font-bold text-slate-100 text-sm tracking-wide">Centro de Inteligencia de Negocio</span>
-            <span className="text-slate-600 text-[10px] md:text-xs uppercase tracking-tighter">ALICO SAS BIC</span>
+    <>
+      <header className="fixed top-0 left-0 right-0 z-50 bg-surface-900 border-b border-surface-700">
+        {/* Brand row */}
+        <div className="flex items-center justify-between px-4 md:px-6 h-12 border-b border-surface-700/50">
+          <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+            <img src={logoAlico} alt="ALICO" className="h-7 w-7 rounded-md object-contain" />
+            <div className="flex flex-col md:flex-row md:items-center md:gap-2">
+              <span className="font-bold text-slate-100 text-xs md:text-sm tracking-wide leading-tight">Centro de Inteligencia</span>
+              <span className="text-slate-600 text-[9px] md:text-xs uppercase tracking-tighter">ALICO SAS BIC</span>
+            </div>
+          </Link>
+          {/* Desktop controls */}
+          <div className="hidden md:flex items-center gap-3">
+            <SearchBar />
+            <span className="text-xs text-slate-500">{new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+            <button onClick={toggleLight} title={light ? 'Modo oscuro' : 'Modo claro'}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-100 px-2.5 py-1.5 rounded-lg hover:bg-surface-700 transition-colors">
+              {light ? <Moon size={14} /> : <Sun size={14} />}
+            </button>
+            <button onClick={onRefresh}
+              className={`flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-100 px-3 py-1.5 rounded-lg hover:bg-surface-700 transition-colors ${refreshing ? 'opacity-60' : ''}`}>
+              <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+              Actualizar
+            </button>
+            <UserMenu />
           </div>
-        </Link>
-        <div className="flex items-center gap-3">
-          <SearchBar />
-          <span className="text-xs text-slate-500">{new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-          <button
-            onClick={toggleLight}
-            title={light ? 'Modo oscuro' : 'Modo claro'}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-100 px-2.5 py-1.5 rounded-lg hover:bg-surface-700 transition-colors"
-          >
-            {light ? <Moon size={14} /> : <Sun size={14} />}
-          </button>
-          <button
-            onClick={onRefresh}
-            className={`flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-100 px-3 py-1.5 rounded-lg hover:bg-surface-700 transition-colors ${refreshing ? 'opacity-60' : ''}`}
-          >
-            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-            Actualizar
-          </button>
-          <UserMenu />
+          {/* Mobile controls */}
+          <div className="flex md:hidden items-center gap-2">
+            <button onClick={onRefresh}
+              className={`p-2 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-surface-700 transition-colors ${refreshing ? 'opacity-60' : ''}`}>
+              <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
+            </button>
+            <UserMenu />
+            <button onClick={() => setMobileOpen((o) => !o)}
+              className="p-2 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-surface-700 transition-colors">
+              {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
         </div>
-      </div>
-      {/* Tabs row */}
-      <div className="flex items-center gap-1 px-4 h-11 overflow-x-auto scrollbar-none">
-        {visibleTabs.map(({ to, label, icon: Icon }) => {
-          const active = to === '/'
-            ? location.pathname === '/'
-            : location.pathname.startsWith(to)
-          return (
-            <NavLink
-              key={to}
-              to={to}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-                active
-                  ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-100 hover:bg-surface-700'
-              }`}
-            >
-              <Icon size={14} />
-              {label}
-            </NavLink>
-          )
-        })}
-      </div>
-    </header>
+        {/* Tabs row — desktop only */}
+        <div className="hidden md:flex items-center gap-1 px-4 h-11 overflow-x-auto scrollbar-none">
+          {visibleTabs.map(({ to, label, icon: Icon }) => {
+            const active = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
+            return (
+              <NavLink key={to} to={to}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                  active ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30' : 'text-slate-400 hover:text-slate-100 hover:bg-surface-700'
+                }`}>
+                <Icon size={14} />
+                {label}
+              </NavLink>
+            )
+          })}
+        </div>
+      </header>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          {/* Drawer */}
+          <nav className="absolute top-0 right-0 h-full w-72 bg-surface-900 border-l border-surface-700 flex flex-col overflow-y-auto">
+            <div className="flex items-center justify-between px-4 h-12 border-b border-surface-700/50 shrink-0">
+              <span className="text-sm font-semibold text-slate-200">Navegación</span>
+              <button onClick={() => setMobileOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-surface-700">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex-1 py-2 px-2">
+              {visibleTabs.map(({ to, label, icon: Icon }) => {
+                const active = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
+                return (
+                  <NavLink key={to} to={to}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium mb-0.5 transition-all ${
+                      active ? 'bg-brand-600/20 text-brand-300' : 'text-slate-400 hover:text-slate-100 hover:bg-surface-700'
+                    }`}>
+                    <Icon size={15} />
+                    {label}
+                  </NavLink>
+                )
+              })}
+            </div>
+            <div className="shrink-0 px-3 py-3 border-t border-surface-700 flex items-center gap-3">
+              <button onClick={toggleLight}
+                className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-slate-100 rounded-lg hover:bg-surface-700 transition-colors flex-1">
+                {light ? <Moon size={14} /> : <Sun size={14} />}
+                {light ? 'Modo oscuro' : 'Modo claro'}
+              </button>
+            </div>
+          </nav>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -275,7 +328,7 @@ export function Layout() {
     <FilterProvider>
       <div className="min-h-screen bg-surface-950">
         <TabBar onRefresh={handleRefresh} refreshing={refreshing} />
-        <main className="pt-[92px]">
+        <main className="pt-12 md:pt-[92px]">
           {/* Global filters bar - Hide on Home page */}
           {location.pathname !== '/' && (
             <div className="border-b border-surface-700/50 bg-surface-900/80 backdrop-blur">

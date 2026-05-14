@@ -168,9 +168,10 @@ export function RegionesView() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
                   <XAxis dataKey="dimension" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={fmtCOP} />
-                  <Tooltip 
+                  <Tooltip
                     contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
-                    itemStyle={{ fontSize: '12px' }}
+                    itemStyle={{ color: '#e2e8f0', fontSize: '12px' }}
+                    labelStyle={{ color: '#94a3b8', fontSize: '12px' }}
                     formatter={(v) => fmtCOP(v)}
                   />
                   <Bar dataKey="ventas_netas" name="Ventas" radius={[4, 4, 0, 0]} barSize={hasPP ? 25 : 40}>

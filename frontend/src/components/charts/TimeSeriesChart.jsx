@@ -1,10 +1,13 @@
+import { useRef } from 'react'
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine, Bar,
 } from 'recharts'
 import { fmtCOP, fmtPct, MONTH_NAMES } from '../../utils/format'
+import { downloadChartAsPng } from '../../utils/downloadChart'
+import { Download } from 'lucide-react'
 
-const C_VENTAS = '#000F9F'
+const C_VENTAS = '#818cf8'
 const C_PP     = '#F8A62B'
 const C_ANT    = '#00B0F0'
 
@@ -63,14 +66,27 @@ function Row({ color, label, value }) {
   )
 }
 
-export function TimeSeriesChart({ data = [], loading }) {
+export function TimeSeriesChart({ data = [], loading, downloadName }) {
+  const ref = useRef(null)
   const series = data.map((d) => ({
     ...d,
     mes_label: MONTH_NAMES[d.mes_num] || d.mes_num,
   }))
 
   return (
-    <div className={`w-full h-72 ${loading ? 'opacity-40 animate-pulse' : 'animate-fade-in'}`}>
+    <div ref={ref} className={`relative group w-full h-72 ${loading ? 'opacity-40 animate-pulse' : 'animate-fade-in'}`}>
+      {downloadName && (
+        <button
+          onClick={() => downloadChartAsPng(ref, downloadName)}
+          title="Descargar PNG"
+          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10
+                     flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium
+                     bg-surface-700/90 text-slate-400 hover:text-slate-100 hover:bg-surface-600
+                     border border-surface-600"
+        >
+          <Download size={10} /> PNG
+        </button>
+      )}
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={series} margin={{ top: 4, right: 16, left: 10, bottom: 4 }}>
           <defs>

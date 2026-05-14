@@ -116,7 +116,7 @@ def get_ventas_diarias(
 _PVTA_CALI = "PVTACALI"
 _PVTA_NORT = "PVTANORT"
 _PVTA_BOG  = "PBOGOTA"
-# Todo PVTA* que NO sea CALI ni NORT → agrupa en PVTA MEDELLIN
+# Todo PVTA* que NO sea CALI ni NORT → agrupa en PVTA MEDELLIN (incluye errores de código como PVTAEJE)
 
 
 @router.get("/pvta")

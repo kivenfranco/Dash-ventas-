@@ -6,7 +6,8 @@ import logging
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from ..deps import vendedor_override
 
 from ..config import get_settings
 from ..database.cache import cache
@@ -25,17 +26,23 @@ def _safe_pct(a, b):
 
 @router.get("")
 def get_vendedores(
+    request: Request,
     ano: int = Query(default_factory=lambda: date.today().year),
     mes: Optional[int] = Query(None, ge=1, le=12),
     mes_fin: Optional[int] = Query(None, ge=1, le=12),
     region: Optional[str] = None,
+    vendedor: Optional[str] = None,
     planta: Optional[str] = None,
     grupo_comercial: Optional[str] = None,
     excl_exportacion: bool = Query(False),
     excl_pvta: bool = Query(False),
 ):
+    forced = vendedor_override(request)
+    if forced:
+        vendedor = forced
+
     cfg = get_settings()
-    key = f"vend:{ano}:{mes}:{mes_fin}:{region}:{planta}:{grupo_comercial}:{excl_exportacion}:{excl_pvta}"
+    key = f"vend:{ano}:{mes}:{mes_fin}:{region}:{vendedor}:{planta}:{grupo_comercial}:{excl_exportacion}:{excl_pvta}"
     cached = cache.get(key)
     if cached:
         return cached
@@ -58,6 +65,8 @@ def get_vendedores(
         cond.append("(UPPER(dd.DESCRIPCION_REGION) NOT LIKE '%%EXPORTACION%%' OR dd.DESCRIPCION_REGION IS NULL)")
     if excl_pvta:
         cond.append("(UPPER(fv.CODIGO_VENDEDOR) NOT LIKE 'PVTA%%' OR fv.CODIGO_VENDEDOR IS NULL)")
+    if vendedor:
+        cond.append("fv.CODIGO_VENDEDOR = %s"); params.append(vendedor)
     join_str = " ".join(joins)
 
     # When viewing full year of current year, compare same YTD period in prior year

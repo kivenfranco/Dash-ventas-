@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Query
 router = APIRouter(prefix="/api/pvta-presupuesto", tags=["PVTA Presupuesto"])
 logger = logging.getLogger(__name__)
 
-_PVTA_CODES = {"PVTACALI", "PVTAEJE", "PVTAMEDE", "PVTANORT"}
+_PVTA_CODES = {"PVTACALI", "PVTAMEDE", "PVTANORT"}
 
 # Ruta al Excel — relativa a la raíz del repositorio
 _EXCEL_PATH = Path(__file__).parent.parent.parent.parent / "PP Completo.xlsx"
